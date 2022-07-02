@@ -1,5 +1,3 @@
-use rayon::prelude::*;
-
 pub struct Channel {
     username: String,
 }
@@ -56,7 +54,7 @@ impl Channel {
             .as_array()
             .ok_or("Unable to convert edges -> array")?;
         
-        let vods: Vec<Vod> = vod_json.par_iter().map(|v| -> Vod {
+        let vods: Vec<Vod> = vod_json.iter().map(|v| -> Vod {
             let vod = v.get("node").unwrap();
             Vod {
                 title: vod
@@ -90,4 +88,8 @@ pub struct Vod {
     title: String,
     id: u32,
     preview_url: String,
+}
+
+impl Vod {
+
 }
