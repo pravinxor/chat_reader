@@ -7,5 +7,6 @@ mod twitch;
 #[tokio::main]
 async fn main() {
     let channel = twitch::Channel::new("twitch");
-    channel.videos().await;
+    let vods = channel.videos().await.unwrap();
+    dbg!(vods);
 }
