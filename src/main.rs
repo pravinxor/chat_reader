@@ -4,6 +4,8 @@ mod common;
 #[path = "twitch.rs"]
 mod twitch;
 
-fn main() {
-    println!("Hello, world!");
+#[tokio::main]
+async fn main() {
+    let channel = twitch::Channel::new("twitch");
+    channel.videos().await;
 }
