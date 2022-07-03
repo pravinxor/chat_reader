@@ -12,7 +12,7 @@ impl Channel {
         }
     }
 
-    pub async fn videos(&self) -> Result<Vec<Vod>, Box<dyn std::error::Error>> {
+    pub fn videos(&self) -> Result<Vec<Vod>, Box<dyn std::error::Error>> {
         let req_json = serde_json::json!([
                                          {
                                              "operationName":"FilterableVideoTower_Videos",
@@ -36,10 +36,8 @@ impl Channel {
             .post("https://gql.twitch.tv/gql")
             .header("Client-Id", crate::common::TWITCH_CLIENT_ID)
             .json(&req_json)
-            .send()
-            .await?
-            .json()
-            .await?;
+            .send()?
+            .json()?;
         let vod_json = response
             .get(0)
             .ok_or("Missing idx 0")?
@@ -140,18 +138,20 @@ pub mod chat {
             }
         }
 
-        async fn get_next(&mut self) -> Result<Vec<Message>, Box<dyn std::error::Error>> {
-            let comment_json: serde_json::Value = crate::common::CLIENT
+        fn get_next(&mut self) -> Result<Vec<Message>, Box<dyn std::error::Error>> {
+            dbg!(&self.cursor);
+            println!("Launch Request");
+            let request = crate::common::CLIENT
                 .get(format!(
                     "https://api.twitch.tv/v5/videos/{}/comments?cursor={}",
                     self.id,
                     self.cursor.as_ref().unwrap()
                 ))
                 .header("Client-Id", crate::common::TWITCH_CLIENT_ID)
-                .send()
-                .await?
-                .json()
-                .await?;
+                .send()?;
+            println!("Recieved, parsing JSON");
+            let comment_json: serde_json::Value = request.json()?;
+            println!("Finished Parsing json");
             let comments = comment_json
                 .get("comments")
                 .ok_or("Missing comments; This video ID may not exist")?
@@ -215,7 +215,7 @@ pub mod chat {
         type Item = Vec<Message>;
         fn next(&mut self) -> Option<Self::Item> {
             if self.cursor.is_some() {
-                match futures::executor::block_on(Self::get_next(self)) {
+                match Self::get_next(self) {
                     Ok(messages) => Some(messages),
                     Err(e) => {
                         eprintln!("{}", e);

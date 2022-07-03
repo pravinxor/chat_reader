@@ -17,17 +17,16 @@ struct Args {
     twitch_vod: Option<u32>,
 }
 
-#[tokio::main]
-async fn main() {
+fn main() {
     let args = Args::parse();
 
     if let Some(username) = args.twitch_channel {
         let channel = crate::twitch::Channel::new(username);
-        dbg!(channel.videos().await.unwrap());
+        dbg!(channel.videos().unwrap());
     }
 
     if let Some(vod) = args.twitch_vod {
         let vod = crate::twitch::Vod::new(vod);
-        vod.comments().flatten().for_each(|message| println!("{}", message));
+        vod.comments().flatten().for_each(|comment| println!("{}", comment));
     }
 }
