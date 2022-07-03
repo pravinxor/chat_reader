@@ -48,7 +48,7 @@ impl Channel {
             .get("user")
             .ok_or("Missing user")?
             .get("videos")
-            .ok_or("Missing videos")?
+            .ok_or("Missing videos; This user may not exist")?
             .get("edges")
             .ok_or("Missing edges")?
             .as_array()
@@ -108,6 +108,9 @@ impl Vod {
 }
 
 pub mod chat {
+    use colored::Colorize;
+    use hhmmss::Hhmmss;
+
     pub struct ChatIterator {
         id: u32,
         cursor: Option<String>,
@@ -116,9 +119,17 @@ pub mod chat {
     #[derive(Debug)]
     pub struct Message {
         user: String,
-        color: u16,
+        color: colored::Color,
         body: String,
         timestamp: f64,
+    }
+
+    impl std::fmt::Display for Message {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            let coloreduser = self.user.color(self.color);
+            let seconds = std::time::Duration::from_secs(self.timestamp as u64);
+            write!(f, "[{}][{}]: {}", seconds.hhmmss(), coloreduser, self.body)
+        }
     }
 
     impl ChatIterator {
@@ -141,10 +152,9 @@ pub mod chat {
                 .await?
                 .json()
                 .await?;
-            dbg!(self.cursor.as_ref().unwrap());
             let comments = comment_json
                 .get("comments")
-                .ok_or("Missing comments")?
+                .ok_or("Missing comments; This video ID may not exist")?
                 .as_array()
                 .ok_or("Unable to convert comments -> array")?;
 
@@ -166,6 +176,19 @@ pub mod chat {
                         .to_string()
                         .trim_matches('"')
                         .to_string();
+                    let colorcode = message.get("user_color");
+                    let color = match colorcode {
+                        Some(code) => {
+                            let code = code.to_string();
+                            let code = code.trim_matches('"').trim_start_matches('#');
+                            colored::Color::TrueColor {
+                                r: u8::from_str_radix(&code[0..2], 16).unwrap(),
+                                g: u8::from_str_radix(&code[2..4], 16).unwrap(),
+                                b: u8::from_str_radix(&code[4..6], 16).unwrap(),
+                            }
+                        }
+                        None => colored::Color::White,
+                    };
                     let timestamp = comment
                         .get("content_offset_seconds")
                         .unwrap()
@@ -175,7 +198,7 @@ pub mod chat {
                         .unwrap();
                     Message {
                         user,
-                        color: 0,
+                        color,
                         body,
                         timestamp,
                     }
@@ -186,7 +209,7 @@ pub mod chat {
                 None => self.cursor = None,
             }
             Ok(messages)
-        } 
+        }
     }
     impl Iterator for ChatIterator {
         type Item = Vec<Message>;

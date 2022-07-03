@@ -8,32 +8,26 @@ use clap::Parser;
 
 #[derive(Parser)]
 struct Args {
-    /// Twitch channel username
-    #[clap(short, long, value_parser)]
-    channel_twitch: Option<String>,
+    /// Read chats from all video within a channel
+    #[clap(long, value_parser)]
+    twitch_channel: Option<String>,
 
-    /// Twitch Video ID
-    #[clap(short, long, value_parser)]
-    video_twitch: Option<u32>,
-
+    /// Read chat from a single video
+    #[clap(long, value_parser)]
+    twitch_vod: Option<u32>,
 }
 
 #[tokio::main]
 async fn main() {
-    //let channel = twitch::Channel::new("alinity");
-    //let vods = channel.videos().await.unwrap();
-    
     let args = Args::parse();
 
-    if let Some(username) = args.channel_twitch {
+    if let Some(username) = args.twitch_channel {
         let channel = crate::twitch::Channel::new(username);
         dbg!(channel.videos().await.unwrap());
     }
 
-    if let Some(vod) = args.video_twitch {
+    if let Some(vod) = args.twitch_vod {
         let vod = crate::twitch::Vod::new(vod);
-        for chunk in vod.comments() {
-            dbg!(chunk);
-        }
+        vod.comments().flatten().for_each(|message| println!("{}", message));
     }
 }
