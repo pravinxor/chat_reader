@@ -187,7 +187,7 @@ pub mod chat {
                 .get(format!(
                     "https://api.twitch.tv/v5/videos/{}/comments?cursor={}",
                     self.id,
-                    self.cursor.as_ref().unwrap()
+                    self.cursor.as_ref().ok_or("Cursor is None")?
                 ))
                 .header("Client-Id", crate::common::TWITCH_CLIENT_ID)
                 .send()?;
@@ -200,19 +200,16 @@ pub mod chat {
 
             let messages = comments
                 .iter()
-                .map(|comment| -> crate::common::Message {
+                .map(|comment| -> Option<crate::common::Message> {
                     let user = comment
-                        .get("commenter")
-                        .unwrap()
-                        .get("display_name")
-                        .unwrap()
+                        .get("commenter")?
+                        .get("name")?
                         .to_string()
                         .trim_matches('"')
                         .to_string();
-                    let message = comment.get("message").unwrap();
+                    let message = comment.get("message")?;
                     let body = message
-                        .get("body")
-                        .unwrap()
+                        .get("body")?
                         .to_string()
                         .trim_matches('"')
                         .to_string();
@@ -230,19 +227,20 @@ pub mod chat {
                         None => colored::Color::White,
                     };
                     let timestamp = comment
-                        .get("content_offset_seconds")
-                        .unwrap()
+                        .get("content_offset_seconds")?
                         .to_string()
                         .trim_matches('"')
                         .parse()
                         .unwrap();
-                    crate::common::Message {
+                    Some(crate::common::Message {
                         user,
                         color,
                         body,
                         timestamp,
-                    }
+                    })
                 })
+                .filter(|c| c.is_some())
+                .map(|c| c.unwrap())
                 .collect();
             match comment_json.get("_next") {
                 Some(next) => self.cursor = Some(next.to_string().trim_matches('"').to_string()),
