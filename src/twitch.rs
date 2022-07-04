@@ -1,3 +1,5 @@
+const CLIENT_ID: &str = "kimne78kx3ncx6brgo4mv6wki5h1ko";
+
 pub struct Channel {
     username: String,
 }
@@ -34,7 +36,7 @@ impl Channel {
 
         let response: serde_json::Value = crate::common::CLIENT
             .post("https://gql.twitch.tv/gql")
-            .header("Client-Id", crate::common::TWITCH_CLIENT_ID)
+            .header("Client-Id", CLIENT_ID)
             .json(&req_json)
             .send()?
             .json()?;
@@ -128,7 +130,7 @@ impl Vod {
 
         let reponse = crate::common::CLIENT
             .post("https://gql.twitch.tv/gql")
-            .header("Client-Id", crate::common::TWITCH_CLIENT_ID)
+            .header("Client-Id", CLIENT_ID)
             .json(&req_json)
             .send()?;
         let metadata_json: serde_json::Value = reponse.json()?;
@@ -189,7 +191,7 @@ pub mod chat {
                     self.id,
                     self.cursor.as_ref().ok_or("Cursor is None")?
                 ))
-                .header("Client-Id", crate::common::TWITCH_CLIENT_ID)
+                .header("Client-Id", crate::twitch::CLIENT_ID)
                 .send()?;
             let comment_json: serde_json::Value = request.json()?;
             let comments = comment_json
@@ -200,7 +202,7 @@ pub mod chat {
 
             let messages = comments
                 .iter()
-                .map(|comment| -> Option<crate::common::Message> {
+                .filter_map(|comment| -> Option<crate::common::Message> {
                     let user = comment
                         .get("commenter")?
                         .get("name")?
@@ -239,8 +241,6 @@ pub mod chat {
                         timestamp,
                     })
                 })
-                .filter(|c| c.is_some())
-                .map(|c| c.unwrap())
                 .collect();
             match comment_json.get("_next") {
                 Some(next) => self.cursor = Some(next.to_string().trim_matches('"').to_string()),
