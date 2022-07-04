@@ -99,6 +99,56 @@ impl Vod {
             preview_url: String::new(),
         }
     }
+
+    pub fn m3u8(&self) -> Result<String, Box<dyn std::error::Error>> {
+        if self.preview_url.is_empty() {
+            return Ok(format!("https://twitch.tv/videos/{}", self.id));
+        }
+
+        let chunked_index = self
+            .preview_url
+            .find("storyboards")
+            .ok_or("Could not find storboards")?;
+        let domain_url = format!("{}chunked/", &self.preview_url[..chunked_index]);
+        let req_json = serde_json::json!([
+                                         {
+                                             "operationName": "VideoMetadata",
+                                             "variables": {
+                                                 "channelLogin": "",
+                                                 "videoID": format!(r#"{}"#, self.id),
+                                             },
+                                             "extensions": {
+                                                 "persistedQuery": {
+                                                     "version": 1,
+                                                     "sha256Hash": "226edb3e692509f727fd56821f5653c05740242c82b0388883e0c0e75dcbf687"
+                                                 }
+                                             }
+                                         }
+        ]);
+
+        let reponse = crate::common::CLIENT
+            .post("https://gql.twitch.tv/gql")
+            .header("Client-Id", crate::common::TWITCH_CLIENT_ID)
+            .json(&req_json)
+            .send()?;
+        let metadata_json: serde_json::Value = reponse.json()?;
+        let vod_type = metadata_json
+            .get(0)
+            .ok_or("Missing idx 0")?
+            .get("data")
+            .ok_or("Missing data")?
+            .get("video")
+            .ok_or("Missing video")?
+            .get("broadcastType")
+            .ok_or("Missing broadcast type")?
+            .to_string();
+        let vod_type = vod_type.trim_matches('"');
+        Ok(match vod_type {
+            "HIGHLIGHT" => format!("{}highlight-{}.m3u8", domain_url, self.id),
+            "ARCHIVE" => format!("{}index-dvr.m3u8", domain_url),
+            _ => format!("https://twitch.tv/videos/{}", self.id),
+        })
+    }
 }
 
 impl crate::common::Vod for Vod {
@@ -109,7 +159,12 @@ impl crate::common::Vod for Vod {
 
 impl std::fmt::Display for Vod {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} {}", self.title, self.id)
+        let m3u8 = match self.m3u8() {
+            Ok(m3u8) => m3u8,
+            Err(e) => e.to_string(),
+        };
+
+        write!(f, "{} {}\n{}", self.title, self.id, m3u8)
     }
 }
 

@@ -1,3 +1,5 @@
+#![feature(scoped_threads)]
+
 #[path = "common.rs"]
 mod common;
 
@@ -24,16 +26,14 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
-
-    let filter = regex::Regex::new(&args.filter).unwrap();
+    let ftype = format!("(?i)({})", args.filter);
+    let filter = regex::Regex::new(&ftype).unwrap();
 
     if let Some(username) = args.twitch_channel {
         let channel = crate::twitch::Channel::new(username);
         let videos = channel.videos().unwrap();
-        crate::common::print_iter(&videos);
-    }
-
-    if let Some(vod) = args.twitch_vod {
+        crate::common::print_iter(&videos, filter);
+    } else if let Some(vod) = args.twitch_vod {
         let vod = crate::twitch::Vod::new(vod);
         vod.comments()
             .flatten()
