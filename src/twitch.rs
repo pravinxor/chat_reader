@@ -99,35 +99,24 @@ impl Vod {
             preview_url: String::new(),
         }
     }
+}
 
-    pub fn comments(&self) -> chat::ChatIterator {
-        chat::ChatIterator::new(self.id)
+impl crate::common::Vod for Vod {
+    fn comments(&self) -> Box<dyn crate::common::ChatIterator> {
+        Box::new(chat::ChatIterator::new(self.id))
+    }
+}
+
+impl std::fmt::Display for Vod {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} {}", self.title, self.id)
     }
 }
 
 pub mod chat {
-    use colored::Colorize;
-    use hhmmss::Hhmmss;
-
     pub struct ChatIterator {
-        id: u32,
+        pub id: u32,
         cursor: Option<String>,
-    }
-
-    #[derive(Debug)]
-    pub struct Message {
-        user: String,
-        color: colored::Color,
-        body: String,
-        timestamp: f64,
-    }
-
-    impl std::fmt::Display for Message {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            let coloreduser = self.user.color(self.color);
-            let seconds = std::time::Duration::from_secs(self.timestamp as u64);
-            write!(f, "[{}][{}]: {}", seconds.hhmmss(), coloreduser, self.body)
-        }
     }
 
     impl ChatIterator {
@@ -138,9 +127,7 @@ pub mod chat {
             }
         }
 
-        fn get_next(&mut self) -> Result<Vec<Message>, Box<dyn std::error::Error>> {
-            dbg!(&self.cursor);
-            println!("Launch Request");
+        fn get_next(&mut self) -> Result<Vec<crate::common::Message>, Box<dyn std::error::Error>> {
             let request = crate::common::CLIENT
                 .get(format!(
                     "https://api.twitch.tv/v5/videos/{}/comments?cursor={}",
@@ -149,9 +136,7 @@ pub mod chat {
                 ))
                 .header("Client-Id", crate::common::TWITCH_CLIENT_ID)
                 .send()?;
-            println!("Recieved, parsing JSON");
             let comment_json: serde_json::Value = request.json()?;
-            println!("Finished Parsing json");
             let comments = comment_json
                 .get("comments")
                 .ok_or("Missing comments; This video ID may not exist")?
@@ -160,7 +145,7 @@ pub mod chat {
 
             let messages = comments
                 .iter()
-                .map(|comment| -> Message {
+                .map(|comment| -> crate::common::Message {
                     let user = comment
                         .get("commenter")
                         .unwrap()
@@ -196,7 +181,7 @@ pub mod chat {
                         .trim_matches('"')
                         .parse()
                         .unwrap();
-                    Message {
+                    crate::common::Message {
                         user,
                         color,
                         body,
@@ -211,8 +196,9 @@ pub mod chat {
             Ok(messages)
         }
     }
+    impl crate::common::ChatIterator for ChatIterator {}
     impl Iterator for ChatIterator {
-        type Item = Vec<Message>;
+        type Item = Vec<crate::common::Message>;
         fn next(&mut self) -> Option<Self::Item> {
             if self.cursor.is_some() {
                 match Self::get_next(self) {
