@@ -32,8 +32,10 @@ fn main() {
     if let Some(username) = args.twitch_channel {
         let channel = crate::twitch::Channel::new(username);
         let videos = channel.videos().unwrap();
-        crate::common::print_iter(&videos, filter);
-    } else if let Some(vod) = args.twitch_vod {
+        crate::common::print_iter(&videos, &filter);
+    }
+
+    if let Some(vod) = args.twitch_vod {
         let vod = crate::twitch::Vod::new(vod);
         vod.comments()
             .flatten()

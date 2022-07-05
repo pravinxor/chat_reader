@@ -75,7 +75,7 @@ impl Channel {
                     .unwrap();
                 let m3u8 = Vod::m3u8(
                     id,
-                    &vod.get("animatedPreviewURL")
+                    vod.get("animatedPreviewURL")
                         .unwrap()
                         .to_string()
                         .trim_matches('"'),

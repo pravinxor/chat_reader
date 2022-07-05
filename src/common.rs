@@ -27,6 +27,7 @@ pub trait ChatIterator: Send + Iterator<Item = Vec<Message>> {
     /// When display_sig recieves a signal, the buffer will be flushed into stdout
     fn display_worker(
         &mut self,
+        finish_sig: std::sync::mpsc::Sender<()>,
         display_sig: std::sync::mpsc::Receiver<()>,
         filter: &regex::Regex,
     ) {
@@ -48,28 +49,33 @@ pub trait ChatIterator: Send + Iterator<Item = Vec<Message>> {
             display_sig.recv().unwrap();
             buf.iter().for_each(|m| println!("{}", m));
         }
+        finish_sig.send(()).unwrap();
     }
 }
 
-pub fn print_iter<V>(vods: &[V], filter: regex::Regex)
+pub fn print_iter<V>(vods: &[V], filter: &regex::Regex)
 where
-    V: Vod,
+    V: Vod + Sync,
 {
-    let filter = &filter;
-    std::thread::scope(|t| {
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(100)
+        .build()
+        .unwrap();
+    pool.scope(|t| {
         let mut future_manager = Vec::with_capacity(vods.len());
 
         for vod in vods {
             let mut comments = vod.comments();
             let (tx, rx) = std::sync::mpsc::channel();
-            let fut = t.spawn(move || comments.display_worker(rx, filter));
-            future_manager.push((vod, fut, tx));
+            let (ftx, frx) = std::sync::mpsc::channel();
+            t.spawn(move |_| comments.display_worker(ftx, rx, filter));
+            future_manager.push((vod, frx, tx));
         }
 
-        for (vod, fut, tx) in future_manager {
+        for (vod, frx, tx) in future_manager {
             println!("{}", vod);
             tx.send(()).unwrap();
-            fut.join().unwrap();
+            frx.recv().unwrap();
             println!();
         }
     });
