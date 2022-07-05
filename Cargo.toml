@@ -13,5 +13,4 @@ lazy_static = "1.4.0"
 hhmmss = "0.1.0"
 colored = "2.0.0"
 regex = "1"
-indicatif = {version = "*", features = ["rayon"]}
 clap = { version = "3.2.8", features = ["derive"] }

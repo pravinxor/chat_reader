@@ -168,6 +168,8 @@ impl std::fmt::Display for Vod {
 }
 
 pub mod chat {
+    use colored::Colorize;
+
     pub struct ChatIterator {
         pub id: u32,
         cursor: Option<String>,
@@ -200,7 +202,7 @@ pub mod chat {
             let messages = comments
                 .iter()
                 .filter_map(|comment| -> Option<crate::common::Message> {
-                    let user = comment
+                    let mut user = comment
                         .get("commenter")?
                         .get("name")?
                         .to_string()
@@ -217,14 +219,17 @@ pub mod chat {
                         Some(code) => {
                             let code = code.to_string();
                             let code = code.trim_matches('"').trim_start_matches('#');
-                            colored::Color::TrueColor {
+                            Some(colored::Color::TrueColor {
                                 r: u8::from_str_radix(&code[0..2], 16).unwrap(),
                                 g: u8::from_str_radix(&code[2..4], 16).unwrap(),
                                 b: u8::from_str_radix(&code[4..6], 16).unwrap(),
-                            }
+                            })
                         }
-                        None => colored::Color::White,
+                        None => None,
                     };
+                    if let Some(color) = color {
+                        user = user.color(color).to_string();
+                    }
                     let timestamp = comment
                         .get("content_offset_seconds")?
                         .to_string()
@@ -233,7 +238,6 @@ pub mod chat {
                         .unwrap();
                     Some(crate::common::Message {
                         user,
-                        color,
                         body,
                         timestamp,
                     })
