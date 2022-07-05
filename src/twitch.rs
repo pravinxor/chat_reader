@@ -1,3 +1,5 @@
+use rayon::prelude::*;
+
 const CLIENT_ID: &str = "kimne78kx3ncx6brgo4mv6wki5h1ko";
 
 pub struct Channel {
@@ -55,30 +57,31 @@ impl Channel {
             .ok_or("Unable to convert edges -> array")?;
 
         let vods: Vec<Vod> = vod_json
-            .iter()
+            .par_iter()
             .map(|v| -> Vod {
                 let vod = v.get("node").unwrap();
-                Vod {
-                    title: vod
-                        .get("title")
+                let title = vod
+                    .get("title")
+                    .unwrap()
+                    .to_string()
+                    .trim_matches('"')
+                    .to_string();
+                let id = vod
+                    .get("id")
+                    .unwrap()
+                    .to_string()
+                    .trim_matches('"')
+                    .parse()
+                    .unwrap();
+                let m3u8 = Vod::m3u8(
+                    id,
+                    &vod.get("animatedPreviewURL")
                         .unwrap()
                         .to_string()
-                        .trim_matches('"')
-                        .to_string(),
-                    id: vod
-                        .get("id")
-                        .unwrap()
-                        .to_string()
-                        .trim_matches('"')
-                        .parse()
-                        .unwrap(),
-                    preview_url: vod
-                        .get("animatedPreviewURL")
-                        .unwrap()
-                        .to_string()
-                        .trim_matches('"')
-                        .to_string(),
-                }
+                        .trim_matches('"'),
+                )
+                .unwrap();
+                Vod { title, id, m3u8 }
             })
             .collect();
 
@@ -90,7 +93,7 @@ impl Channel {
 pub struct Vod {
     title: String,
     id: u32,
-    preview_url: String,
+    m3u8: String,
 }
 
 impl Vod {
@@ -98,26 +101,25 @@ impl Vod {
         Self {
             title: String::new(),
             id,
-            preview_url: String::new(),
+            m3u8: String::new(),
         }
     }
 
-    pub fn m3u8(&self) -> Result<String, Box<dyn std::error::Error>> {
-        if self.preview_url.is_empty() {
-            return Ok(format!("https://twitch.tv/videos/{}", self.id));
+    fn m3u8(id: u32, preview_url: &str) -> Result<String, Box<dyn std::error::Error>> {
+        if preview_url.is_empty() {
+            return Ok(format!("https://twitch.tv/videos/{}", id));
         }
 
-        let chunked_index = self
-            .preview_url
+        let chunked_index = preview_url
             .find("storyboards")
             .ok_or("Could not find storboards")?;
-        let domain_url = format!("{}chunked/", &self.preview_url[..chunked_index]);
+        let domain_url = format!("{}chunked/", &preview_url[..chunked_index]);
         let req_json = serde_json::json!([
                                          {
                                              "operationName": "VideoMetadata",
                                              "variables": {
                                                  "channelLogin": "",
-                                                 "videoID": format!(r#"{}"#, self.id),
+                                                 "videoID": format!(r#"{}"#, id),
                                              },
                                              "extensions": {
                                                  "persistedQuery": {
@@ -146,9 +148,9 @@ impl Vod {
             .to_string();
         let vod_type = vod_type.trim_matches('"');
         Ok(match vod_type {
-            "HIGHLIGHT" => format!("{}highlight-{}.m3u8", domain_url, self.id),
+            "HIGHLIGHT" => format!("{}highlight-{}.m3u8", domain_url, id),
             "ARCHIVE" => format!("{}index-dvr.m3u8", domain_url),
-            _ => format!("https://twitch.tv/videos/{}", self.id),
+            _ => format!("https://twitch.tv/videos/{}", id),
         })
     }
 }
@@ -161,12 +163,7 @@ impl crate::common::Vod for Vod {
 
 impl std::fmt::Display for Vod {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let m3u8 = match self.m3u8() {
-            Ok(m3u8) => m3u8,
-            Err(e) => e.to_string(),
-        };
-
-        write!(f, "{} {}\n{}", self.title, self.id, m3u8)
+        write!(f, "{} {}\n{}", self.title, self.id, self.m3u8)
     }
 }
 

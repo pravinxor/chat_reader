@@ -79,6 +79,7 @@ dependencies = [
  "hhmmss",
  "indicatif",
  "lazy_static",
+ "rayon",
  "regex",
  "reqwest",
  "serde_json",
