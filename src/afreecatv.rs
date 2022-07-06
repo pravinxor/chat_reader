@@ -66,9 +66,7 @@ impl crate::common::Vod for Vod {
             .send()
             .unwrap()
             .text()
-            .unwrap()
-            .to_string();
-        println!("{}", &xml);
+            .unwrap();
         let key_iter = KEY_MATCHER.find_iter(&xml);
         let duration_iter = DURATION_MATCHER.find_iter(&xml);
         let rows = key_iter
@@ -79,7 +77,10 @@ impl crate::common::Vod for Vod {
                 Row { key, duration }
             })
             .collect();
-        Box::new(ChatIterator { rows })
+        Box::new(ChatIterator {
+            rows,
+            current_offset: 0,
+        })
     }
 }
 
@@ -91,6 +92,7 @@ struct Row {
 
 struct ChatIterator {
     rows: std::collections::VecDeque<Row>,
+    current_offset: u16,
 }
 
 impl ChatIterator {
@@ -110,19 +112,19 @@ impl ChatIterator {
             .root()
             .descendants()
             .skip_while(|n| n.tag_name().name() != "chat");
-        chat.map(|m| m.children().collect::<Vec<roxmltree::Node>>()) 
+        chat.map(|m| m.children().collect::<Vec<roxmltree::Node>>())
             .flat_map(|message| -> Option<crate::common::Message> {
                 let user = message.get(2)?.text()?;
                 let body = message.get(4)?.text()?;
                 let timestamp = message.get(6)?.text()?.parse();
-                let timestamp = match timestamp {
+                let timestamp: f64 = match timestamp {
                     Ok(ts) => ts,
                     Err(_) => return None,
                 };
                 Some(crate::common::Message {
                     user: user.to_string(),
                     body: body.to_string(),
-                    timestamp,
+                    timestamp: timestamp + time_offset as f64,
                 })
             })
             .collect()
@@ -130,9 +132,9 @@ impl ChatIterator {
 
     fn load_chunk(row: Row, time_offset: u16) -> Vec<crate::common::Message> {
         let segment_diff = 300;
-        let timings: Vec<u16> =  (0..row.duration)
-            .step_by(segment_diff).collect();
-        timings.par_iter()
+        let timings: Vec<u16> = (0..row.duration).step_by(segment_diff).collect();
+        timings
+            .par_iter()
             .map(|t| Self::get_segment(&row.key, *t, time_offset))
             .flatten()
             .collect()
@@ -142,10 +144,11 @@ impl ChatIterator {
 impl Iterator for ChatIterator {
     type Item = Vec<crate::common::Message>;
     fn next(&mut self) -> Option<Self::Item> {
-        let row = self.rows.pop_front().unwrap();
-        let c  =ChatIterator::load_chunk(row, 0);
-        dbg!(c);
-        None
+        let row = self.rows.pop_front()?;
+        let duration = row.duration;
+        let item = ChatIterator::load_chunk(row, self.current_offset);
+        self.current_offset += duration;
+        Some(item)
     }
 }
 
