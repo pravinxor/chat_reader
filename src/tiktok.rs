@@ -13,11 +13,48 @@ impl Vod {
             cursor: 0,
         }
     }
+
+    pub fn captions(&self) -> CaptionIterator {
+        CaptionIterator { id: self.id }
+    }
 }
 
 pub struct ChatIterator {
     id: u64,
     cursor: u64,
+}
+
+lazy_static::lazy_static! {
+    static ref TRANSCRIPT_MATCHER: regex::Regex = regex::Regex::new(r#""eng-U\w","Url":"https:\\u002F\\u002F\w+-webapp.tiktokcdn-\w\w.com\\\w+\\\w+\\u002Fvideo\\u002Ftos\\u002Falisg\\u002Ftos-alisg-pv-\d+\\\w+\\u002F\?"#).unwrap();
+}
+
+pub struct CaptionIterator {
+    id: u64,
+}
+
+impl Iterator for CaptionIterator {
+    type Item = Vec<crate::common::Message>;
+    fn next(&mut self) -> Option<Self::Item> {
+        let response = crate::common::CLIENT
+            .get(format!(
+                "https://www.tiktok.com/@chloe_dillon/video/{}",
+                self.id
+            ))
+            .header(reqwest::header::USER_AGENT, USER_AGENT)
+            .send()
+            .unwrap()
+            .text()
+            .unwrap();
+        println!("{}", &response);
+
+        let transcript_key = TRANSCRIPT_MATCHER
+            .find(&response)?
+            .as_str()
+            .replace(r#"\u002F"#, "/");
+        let transcript_key = transcript_key[16..].trim_end_matches('"');
+        println!("{}", transcript_key);
+        None
+    }
 }
 
 const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.114 Safari/537.36";
