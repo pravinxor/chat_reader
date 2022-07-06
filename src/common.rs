@@ -8,13 +8,16 @@ use hhmmss::Hhmmss;
 pub struct Message {
     pub user: String,
     pub body: String,
-    pub timestamp: f64,
+    pub timestamp: Option<f64>,
 }
 
 impl std::fmt::Display for Message {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let seconds = std::time::Duration::from_secs(self.timestamp as u64);
-        write!(f, "[{}][{}]: {}", seconds.hhmmss(), self.user, self.body)
+        if let Some(seconds) = self.timestamp {
+            let seconds = std::time::Duration::from_secs(seconds as u64);
+            write!(f, "[{}]", seconds.hhmmss())?
+        }
+        write!(f, "[{}]: {}", self.user, self.body)
     }
 }
 

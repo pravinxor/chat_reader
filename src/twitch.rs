@@ -239,7 +239,7 @@ pub mod chat {
                     Some(crate::common::Message {
                         user,
                         body,
-                        timestamp,
+                        timestamp: Some(timestamp),
                     })
                 })
                 .collect();

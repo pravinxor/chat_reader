@@ -172,21 +172,23 @@ struct ChatIterator {
 }
 
 impl ChatIterator {
-    fn get_segment(key: &str, start_time: u16, time_offset: u16) -> Result<Vec<crate::common::Message>, Box<dyn std::error::Error>> {
+    fn get_segment(
+        key: &str,
+        start_time: u16,
+        time_offset: u16,
+    ) -> Result<Vec<crate::common::Message>, Box<dyn std::error::Error>> {
         let transcript_url = format!(
             "https://videoimg.afreecatv.com/php/ChatLoadSplit.php?rowKey={}_c&startTime={}",
             key, start_time
         );
-        let xml_text = crate::common::CLIENT
-            .get(&transcript_url)
-            .send()?
-            .text()?;
+        let xml_text = crate::common::CLIENT.get(&transcript_url).send()?.text()?;
         let roxml = roxmltree::Document::parse(&xml_text)?;
         let chat = roxml
             .root()
             .descendants()
             .skip_while(|n| n.tag_name().name() != "chat");
-        Ok(chat.map(|m| m.children().collect::<Vec<roxmltree::Node>>())
+        Ok(chat
+            .map(|m| m.children().collect::<Vec<roxmltree::Node>>())
             .flat_map(|message| -> Option<crate::common::Message> {
                 let user = message.get(2)?.text()?;
                 let body = message.get(4)?.text()?;
@@ -198,7 +200,7 @@ impl ChatIterator {
                 Some(crate::common::Message {
                     user: user.to_string(),
                     body: body.to_string(),
-                    timestamp: timestamp + time_offset as f64,
+                    timestamp: Some(timestamp + time_offset as f64),
                 })
             })
             .collect())

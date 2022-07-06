@@ -1,5 +1,3 @@
-use rayon::prelude::*;
-
 pub struct Vod {
     id: u64,
 }
@@ -30,7 +28,7 @@ impl Iterator for ChatIterator {
     fn next(&mut self) -> Option<Self::Item> {
         let response: serde_json::Value = crate::common::CLIENT
             .get(format!(
-                "https://us.tiktok.com/api/comment/list/?aweme_id={}&count=999999&&cursor={}",
+                "https://us.tiktok.com/api/comment/list/?aweme_id={}&count=50&cursor={}",
                 self.id, self.cursor
             ))
             .header(reqwest::header::REFERER, "https://www.tiktok.com/")
@@ -44,7 +42,7 @@ impl Iterator for ChatIterator {
             response
                 .get("comments")?
                 .as_array()?
-                .par_iter()
+                .iter()
                 .flat_map(|comment| -> Option<crate::common::Message> {
                     let user = comment
                         .get("user")?

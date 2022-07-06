@@ -7,6 +7,9 @@ mod afreecatv;
 #[path = "twitch.rs"]
 mod twitch;
 
+#[path = "tiktok.rs"]
+mod tiktok;
+
 use crate::common::Vod;
 use clap::Parser;
 
@@ -29,15 +32,19 @@ struct Args {
     #[clap(long, value_parser)]
     afreecatv_vod: Option<u32>,
 
+    /// Read comments from a single tiktok video
+    #[clap(long, value_parser)]
+    tiktok_vod: Option<u64>,
+
     /// Filter chat search results
     #[clap(short, long, value_parser, default_value = "")]
     filter: String,
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
     let ftype = format!("(?i)({})", args.filter);
-    let filter = regex::Regex::new(&ftype).unwrap();
+    let filter = regex::Regex::new(&ftype)?;
 
     if let Some(username) = args.twitch_channel {
         let channel = crate::twitch::Channel::new(username);
@@ -55,15 +62,24 @@ fn main() {
 
     if let Some(username) = args.afreecatv_channel {
         let channel = crate::afreecatv::Channel::new(username);
-        let videos = channel.videos().unwrap();
+        let videos = channel.videos()?;
         crate::common::print_iter(&videos, &filter);
     }
 
     if let Some(vod) = args.afreecatv_vod {
-        let vod = crate::afreecatv::Vod::new(vod).unwrap();
+        let vod = crate::afreecatv::Vod::new(vod)?;
         vod.comments()
             .flatten()
             .filter(|m| filter.is_match(&m.body))
             .for_each(|comment| println!("{}", comment));
     }
+
+    if let Some(vod) = args.tiktok_vod {
+        let vod = crate::tiktok::Vod::new(vod);
+        vod.comments()
+            .flatten()
+            .filter(|m| filter.is_match(&m.body))
+            .for_each(|comment| println!("{}", comment));
+    };
+    Ok(())
 }
