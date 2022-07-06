@@ -13,13 +13,17 @@ use clap::Parser;
 #[derive(Parser)]
 #[clap(arg_required_else_help(true))]
 struct Args {
-    /// Read chats from all video within a channel
+    /// Read chats from all videos within a channel
     #[clap(long, value_parser)]
     twitch_channel: Option<String>,
 
     /// Read chat from a single video
     #[clap(long, value_parser)]
     twitch_vod: Option<u32>,
+
+    /// Read chats from all vods within a blog
+    #[clap(long, value_parser)]
+    afreecatv_channel: Option<String>,
 
     /// Read chat from a single video
     #[clap(long, value_parser)]
@@ -47,6 +51,12 @@ fn main() {
             .flatten()
             .filter(|m| filter.is_match(&m.body))
             .for_each(|comment| println!("{}", comment));
+    }
+
+    if let Some(username) = args.afreecatv_channel {
+        let channel = crate::afreecatv::Channel::new(username);
+        let videos = channel.videos().unwrap();
+        crate::common::print_iter(&videos, &filter);
     }
 
     if let Some(vod) = args.afreecatv_vod {

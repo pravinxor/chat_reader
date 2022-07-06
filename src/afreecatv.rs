@@ -1,11 +1,81 @@
 use rayon::prelude::*;
 
-#[derive(Debug)]
+pub struct Channel {
+    name: String,
+}
+
+impl Channel {
+    pub fn new<S>(name: S) -> Self
+    where
+        S: Into<String>,
+    {
+        Self { name: name.into() }
+    }
+
+    fn get_page(&self, num: u64) -> Result<Vec<Vod>, Box<dyn std::error::Error>> {
+        let vods_json: serde_json::Value = crate::common::CLIENT
+            .get(format!(
+                "https://bjapi.afreecatv.com/api/{}/vods/all?per_page=60&page={}",
+                self.name, num
+            ))
+            .send()?
+            .json()?;
+        let data = vods_json
+            .get("data")
+            .ok_or("Missing data")?
+            .as_array()
+            .ok_or("Unable to convert data -> array")?;
+
+        Ok(data
+            .iter()
+            .flat_map(|v| -> Option<Vod> {
+                let title_name = v.get("title_name")?.as_str()?.to_string();
+                let title_no = v.get("title_no")?.as_u64()? as u32;
+                let station_no = v.get("station_no")?.as_u64()? as u32;
+                let bbs_no = v.get("bbs_no")?.as_u64()? as u32;
+
+                Some(Vod {
+                    title_name: Some(title_name),
+                    title_no,
+                    station_no,
+                    bbs_no,
+                })
+            })
+            .collect())
+    }
+
+    pub fn videos(&self) -> Result<Vec<Vod>, Box<dyn std::error::Error>> {
+        let info_json: serde_json::Value = crate::common::CLIENT
+            .get(format!(
+                "https://bjapi.afreecatv.com/api/{}/vods/all?per_page=60",
+                self.name
+            ))
+            .send()?
+            .json()?;
+        let last_page = info_json
+            .get("meta")
+            .ok_or("Missing meta")?
+            .get("last_page")
+            .ok_or("Missing last_page")?
+            .as_u64()
+            .ok_or("Unable to convert last_page -> u64")?;
+        let v = (1..=last_page)
+            .into_par_iter()
+            .flat_map(|n| self.get_page(n))
+            .flatten()
+            .collect();
+        Ok(v)
+    }
+}
+
 pub struct Vod {
+    title_name: Option<String>,
     title_no: u32,
     station_no: u32,
     bbs_no: u32,
 }
+
+const DUMMY_COOKIE: &str = "PdboxTicket=.A32.7bbT56vyHM9fKZk.SCwwbeEYGl-_RK8offHEfHRYug37IvxHp0iHV0ZjIqUgEYDviDxevQx01PU6-AIlExXpKM5FEovtC9uP5EjNQPDwZy2I1EjK9l8WItbBrj5hT7jYYNI34878csX4CiR0cVbPPGjlXxk3U_b3F6jxpL7wjHq1-Bn7H9-CeE-OCrOn1b_4A-pWHT-hESimjmpn4vuuyKPahezPgzUYwUI6aEfA5tDmg4a5QbHbi6i6bzGHl-QNgOU4fBpptWbAWhP1ozM-fgpezDX48KiJhMUKRnxFxqVRL_gRVUUDKdKj6gWMi1eSQ_tZGZ5WjTaU6HedrKUszz3Y0L54f5jy5FHC3DYAfULMloAsPr8G7MIaxado_lk17alEblaCyDplxso0BRXaNyM495kKHNmNgah3h_xsK7OXQpG3qfNDosZBv5Uti1hPZ69sE36cti8eypM_wc2xAx8VTRmPRjvYfda6EU4ElcUF3SfVgWW_QDvULzjLnk8ZPG6v8naZZcys_UrLxWWEzCXizhBBz7eVRh2G4mezEbMGKVM5aumaQyGwn_pdYOummsvjfdWQELDetgjH";
 
 lazy_static::lazy_static! {
     static ref TITLE_NO_MATCHER: regex::Regex = regex::Regex::new(r#"document\.nTitleNo = [0-9]+;"#).unwrap();
@@ -14,6 +84,16 @@ lazy_static::lazy_static! {
 
     static ref KEY_MATCHER: regex::Regex = regex::Regex::new(r#"key="([0-9]|[A-Z]|_)+""#).unwrap();
     static ref DURATION_MATCHER: regex::Regex = regex::Regex::new(r#"file duration="[0-9]+""#).unwrap();
+}
+
+impl std::fmt::Display for Vod {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(title_name) = &self.title_name {
+            write!(f, "{} {}", title_name, self.title_no)
+        } else {
+            write!(f, "{}", self.title_no)
+        }
+    }
 }
 
 impl Vod {
@@ -42,6 +122,7 @@ impl Vod {
             .parse()?;
 
         Ok(Self {
+            title_name: None,
             title_no,
             station_no,
             bbs_no,
@@ -53,16 +134,11 @@ impl Vod {
     }
 }
 
-impl std::fmt::Display for Vod {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} {} {}", self.title_no, self.station_no, self.bbs_no)
-    }
-}
-
 impl crate::common::Vod for Vod {
     fn comments(&self) -> Box<dyn crate::common::ChatIterator> {
         let xml = crate::common::CLIENT
             .get(self.info_url())
+            .header(reqwest::header::COOKIE, DUMMY_COOKIE)
             .send()
             .unwrap()
             .text()
@@ -96,23 +172,21 @@ struct ChatIterator {
 }
 
 impl ChatIterator {
-    fn get_segment(key: &str, start_time: u16, time_offset: u16) -> Vec<crate::common::Message> {
+    fn get_segment(key: &str, start_time: u16, time_offset: u16) -> Result<Vec<crate::common::Message>, Box<dyn std::error::Error>> {
         let transcript_url = format!(
             "https://videoimg.afreecatv.com/php/ChatLoadSplit.php?rowKey={}_c&startTime={}",
             key, start_time
         );
         let xml_text = crate::common::CLIENT
             .get(&transcript_url)
-            .send()
-            .unwrap()
-            .text()
-            .unwrap();
-        let roxml = roxmltree::Document::parse(&xml_text).unwrap();
+            .send()?
+            .text()?;
+        let roxml = roxmltree::Document::parse(&xml_text)?;
         let chat = roxml
             .root()
             .descendants()
             .skip_while(|n| n.tag_name().name() != "chat");
-        chat.map(|m| m.children().collect::<Vec<roxmltree::Node>>())
+        Ok(chat.map(|m| m.children().collect::<Vec<roxmltree::Node>>())
             .flat_map(|message| -> Option<crate::common::Message> {
                 let user = message.get(2)?.text()?;
                 let body = message.get(4)?.text()?;
@@ -127,7 +201,7 @@ impl ChatIterator {
                     timestamp: timestamp + time_offset as f64,
                 })
             })
-            .collect()
+            .collect())
     }
 
     fn load_chunk(row: Row, time_offset: u16) -> Vec<crate::common::Message> {
@@ -135,7 +209,7 @@ impl ChatIterator {
         let timings: Vec<u16> = (0..row.duration).step_by(segment_diff).collect();
         timings
             .par_iter()
-            .map(|t| Self::get_segment(&row.key, *t, time_offset))
+            .flat_map(|t| Self::get_segment(&row.key, *t, time_offset))
             .flatten()
             .collect()
     }
