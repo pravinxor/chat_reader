@@ -51,7 +51,9 @@ fn main() {
 
     if let Some(vod) = args.afreecatv_vod {
         let vod = crate::afreecatv::Vod::new(vod).unwrap();
-        vod.comments().flatten().filter(|m| filter.is_match(&m.body))
+        vod.comments()
+            .flatten()
+            .filter(|m| filter.is_match(&m.body))
             .for_each(|comment| println!("{}", comment));
     }
 }
