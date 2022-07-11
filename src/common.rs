@@ -54,6 +54,7 @@ pub trait ChatIterator: Send + Iterator<Item = Vec<Message>> {
             display_sig.recv().unwrap();
             buf.iter().for_each(|m| println!("{}", m));
         }
+        writer.flush().unwrap();
         finish_sig.send(()).unwrap();
     }
 }
