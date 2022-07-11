@@ -3,6 +3,7 @@ lazy_static::lazy_static! {
 }
 
 use hhmmss::Hhmmss;
+use std::io::Write;
 
 #[derive(Debug)]
 pub struct Message {
@@ -36,13 +37,14 @@ pub trait ChatIterator: Send + Iterator<Item = Vec<Message>> {
     ) {
         let mut display_now = false;
         let mut buf = Vec::new();
+        let mut writer = std::io::BufWriter::new(std::io::stdout());
         for message in self
             .flatten()
             .filter(|message| filter.is_match(&message.body))
         {
             buf.push(message);
             if display_now {
-                buf.iter().for_each(|m| println!("{}", m));
+                buf.iter().for_each(|m| writeln!(writer, "{}", m).unwrap());
                 buf.clear();
             } else if display_sig.try_recv().is_ok() {
                 display_now = true;
