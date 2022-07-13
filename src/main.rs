@@ -43,6 +43,9 @@ struct Args {
     /// Filter chat search results
     #[clap(short, long, value_parser, default_value = "")]
     filter: String,
+
+    #[clap(short, long, parse(from_flag))]
+    showall: bool,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -55,14 +58,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let channels = tag.channels()?;
         channels.iter().for_each(|channel| {
             println!("Working on {}", channel.username);
-            crate::common::print_iter(&channel.videos().unwrap(), &filter);
+            crate::common::print_iter(&channel.videos().unwrap(), &filter, args.showall);
         });
     }
 
     if let Some(username) = args.twitch_channel {
         let channel = crate::twitch::Channel::new(username);
         let videos = channel.videos()?;
-        crate::common::print_iter(&videos, &filter);
+        crate::common::print_iter(&videos, &filter, args.showall);
     }
 
     if let Some(vod) = args.twitch_vod {
@@ -76,7 +79,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(username) = args.afreecatv_channel {
         let channel = crate::afreecatv::Channel::new(username);
         let videos = channel.videos()?;
-        crate::common::print_iter(&videos, &filter);
+        crate::common::print_iter(&videos, &filter, args.showall);
     }
 
     if let Some(vod) = args.afreecatv_vod {

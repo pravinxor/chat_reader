@@ -3,7 +3,6 @@ lazy_static::lazy_static! {
 }
 
 use hhmmss::Hhmmss;
-use std::io::Write;
 
 #[derive(Debug)]
 pub struct Message {
@@ -31,16 +30,24 @@ pub trait ChatIterator: Send + Iterator<Item = Vec<Message>> {
     /// When display_sig recieves a signal, the buffer will be flushed into stdout
     fn display_worker(
         &mut self,
+        ready_sig: std::sync::mpsc::Sender<bool>,
         finish_sig: std::sync::mpsc::Sender<()>,
         display_sig: std::sync::mpsc::Receiver<()>,
         filter: &regex::Regex,
+        showall: bool,
     ) {
         let mut display_now = false;
+        let mut has_messages = false;
         let mut buf = Vec::new();
         for message in self
             .flatten()
             .filter(|message| filter.is_match(&message.body))
         {
+            if !showall && !has_messages {
+                ready_sig.send(true).unwrap();
+                has_messages = true;
+            }
+
             buf.push(message);
             if display_now {
                 buf.iter().for_each(|m| println!("{}", m));
@@ -48,6 +55,9 @@ pub trait ChatIterator: Send + Iterator<Item = Vec<Message>> {
             } else if display_sig.try_recv().is_ok() {
                 display_now = true;
             }
+        }
+        if !showall && !has_messages {
+            ready_sig.send(false).unwrap();
         }
         if !display_now {
             display_sig.recv().unwrap();
@@ -57,7 +67,7 @@ pub trait ChatIterator: Send + Iterator<Item = Vec<Message>> {
     }
 }
 
-pub fn print_iter<V>(vods: &[V], filter: &regex::Regex)
+pub fn print_iter<V>(vods: &[V], filter: &regex::Regex, showall: bool)
 where
     V: Vod + Sync,
 {
@@ -72,15 +82,23 @@ where
             let mut comments = vod.comments();
             let (tx, rx) = std::sync::mpsc::channel();
             let (ftx, frx) = std::sync::mpsc::channel();
-            t.spawn(move |_| comments.display_worker(ftx, rx, filter));
-            future_manager.push((vod, frx, tx));
+            let (rtx, rrx) = std::sync::mpsc::channel();
+            t.spawn(move |_| comments.display_worker(rtx, ftx, rx, filter, showall));
+
+            future_manager.push((vod, rrx, frx, tx));
         }
 
-        for (vod, frx, tx) in future_manager {
-            println!("{}", vod);
+        for (vod, rrx, frx, tx) in future_manager {
+            let res = if !showall { rrx.recv().unwrap() } else { true };
+
+            if res {
+                println!("{}", vod);
+            }
             tx.send(()).unwrap();
             frx.recv().unwrap();
-            println!();
+            if res {
+                println!();
+            }
         }
     });
 }
