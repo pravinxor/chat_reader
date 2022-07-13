@@ -44,7 +44,7 @@ pub trait ChatIterator: Send + Iterator<Item = Vec<Message>> {
         let mut buf = Vec::new();
         for message in self
             .flatten()
-            .filter(|message| filter.is_match(&message.body))
+            .filter(|message| filter.is_match(&message.body) || filter.is_match(message.user.as_ref().unwrap()))
         {
             if !showall && !has_messages {
                 ready_sig.send(true).unwrap();

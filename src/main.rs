@@ -88,7 +88,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let vod = crate::twitch::Vod::new(vod);
             vod.comments()
                 .flatten()
-                .filter(|m| filter.is_match(&m.body))
+                .filter(|m| filter.is_match(&m.body) || filter.is_match(m.user.as_ref().unwrap()))
                 .for_each(|comment| println!("{}", comment));
         }
     }
@@ -106,7 +106,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let vod = crate::afreecatv::Vod::new(vod)?;
             vod.comments()
                 .flatten()
-                .filter(|m| filter.is_match(&m.body))
+                .filter(|m| filter.is_match(&m.body) || filter.is_match(m.user.as_ref().unwrap()))
                 .for_each(|comment| println!("{}", comment));
         }
     }
@@ -116,7 +116,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let vod = crate::tiktok::Vod::new(vod);
             vod.comments()
                 .flatten()
-                .filter(|m| filter.is_match(&m.body))
+                .filter(|m| filter.is_match(&m.body) || filter.is_match(m.user.as_ref().unwrap()))
                 .for_each(|comment| println!("{}", comment));
         }
     };
