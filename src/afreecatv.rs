@@ -198,7 +198,7 @@ impl ChatIterator {
                     Err(_) => return None,
                 };
                 Some(crate::common::Message {
-                    user: user.to_string(),
+                    user: Some(user.to_string()),
                     body: body.to_string(),
                     timestamp: Some(timestamp + time_offset as f64),
                 })

@@ -42,9 +42,10 @@ impl Tag {
             .ok_or("Missing taglist[0]")?
             .get("id")
             .ok_or("Missing id")?
-            .to_string();
+            .as_str()
+            .ok_or("Could not convert to string")?;
         Ok(Self {
-            id: id.trim_matches('"').to_string(),
+            id: id.to_string(),
         })
     }
 
@@ -96,7 +97,7 @@ impl Tag {
             .iter()
             .flat_map(|e| -> Option<Channel> {
                 let username = e.get("node")?.get("broadcaster")?.get("login")?.as_str()?;
-                Some(Channel::new(username.trim_matches('"')))
+                Some(Channel::new(username))
             })
             .collect())
     }
@@ -109,28 +110,31 @@ pub struct Channel {
 
 impl Channel {
     pub fn new<S>(username: S) -> Self
-    where
-        S: Into<String>,
+    where S: Into<String>
     {
         Self {
             username: username.into(),
         }
     }
 
+    pub fn clips(&self) -> self::clips::ClipIterator {
+        self::clips::ClipIterator::new(&self.username)
+    }
+
     pub fn videos(&self) -> Result<Vec<Vod>, Box<dyn std::error::Error>> {
         let req_json = serde_json::json!([
                                          {
-                                             "operationName":"FilterableVideoTower_Videos",
-                                             "variables":{
-                                                 "limit":100,
-                                                 "channelOwnerLogin":self.username,
-                                                 "broadcastType":null,
-                                                 "videoSort":"TIME",
-                                                 "cursor":""
+                                             "operationName": "FilterableVideoTower_Videos",
+                                             "variables": {
+                                                 "limit": 100,
+                                                 "channelOwnerLogin": self.username,
+                                                 "broadcastType": null,
+                                                 "videoSort": "TIME",
+                                                 "cursor": ""
                                              },
-                                             "extensions":{
-                                                 "persistedQuery":{
-                                                     "version":1,
+                                             "extensions": {
+                                                 "persistedQuery": {
+                                                     "version": 1,
                                                      "sha256Hash": "a937f1d22e269e39a03b509f65a7490f9fc247d7f83d6ac1421523e3b68042cb"
                                                  }
                                              }
@@ -159,34 +163,114 @@ impl Channel {
 
         let vods: Vec<Vod> = vod_json
             .par_iter()
-            .map(|v| -> Vod {
+            .flat_map(|v| -> Option<Vod> {
                 let vod = v.get("node").unwrap();
-                let title = vod
-                    .get("title")
-                    .unwrap()
-                    .to_string()
-                    .trim_matches('"')
-                    .to_string();
+                let title = vod.get("title")?.as_str()?.to_string();
                 let id = vod
                     .get("id")
                     .unwrap()
-                    .to_string()
-                    .trim_matches('"')
+                    .as_str()?
                     .parse()
                     .unwrap();
                 let m3u8 = Vod::m3u8(
                     id,
-                    vod.get("animatedPreviewURL")
-                        .unwrap()
-                        .to_string()
-                        .trim_matches('"'),
+                    vod.get("animatedPreviewURL")?.as_str()?,
                 )
                 .unwrap();
-                Vod { title, id, m3u8 }
+                Some(Vod { title, id, m3u8 })
             })
             .collect();
-
         Ok(vods)
+    }
+}
+
+pub mod clips {
+    pub struct ClipIterator {
+        username: String,
+        cursor: Option<String>,
+    }
+
+    impl ClipIterator {
+        pub fn new<S>(username: S) -> Self
+        where
+            S: Into<String>,
+        {
+            Self {
+                username: username.into(),
+                cursor: Some(String::from("")),
+            }
+        }
+        fn get_next(&mut self) -> Result<Vec<crate::common::Message>, Box<dyn std::error::Error>> {
+            let req_json = serde_json::json!([
+                                             {
+                                                 "operationName": "ClipsCards__User",
+                                                 "variables": {
+                                                 "login": self.username,
+                                                 "limit": 100,
+                                                 "criteria": {
+                                                     "filter": "ALL_TIME"
+                                                 },
+                                                 "cursor": self.cursor,
+                                                 },
+                                                 "extensions": {
+                                                     "persistedQuery": {
+                                                     "version": 1,
+                                                     "sha256Hash": "b73ad2bfaecfd30a9e6c28fada15bd97032c83ec77a0440766a56fe0bd632777"
+                                                 }
+                                             }
+                                         }
+            ]);
+
+            let response: serde_json::Value = crate::common::CLIENT
+                .post(super::GQL)
+                .header("Client-Id", super::CLIENT_ID)
+                .json(&req_json)
+                .send()?
+                .json()?;
+            let clips = response
+                .get(0)
+                .ok_or("Missing idx 0")?
+                .get("data")
+                .ok_or("Missing data")?
+                .get("user")
+                .ok_or("Missing user")?
+                .get("clips")
+                .ok_or("Missing clips")?
+                .get("edges")
+                .ok_or("Missing edges")?
+                .as_array()
+                .ok_or("Unable to convert clips -> array")?;
+            self.cursor = clips.iter().flat_map(|e| -> Option<String> { Some(e.get("cursor")?.as_str()?.to_string()) }).next();
+            Ok(clips
+                .iter()
+                .flat_map(|e| e.get("node"))
+                .flat_map(|node| -> Option<crate::common::Message> {
+                    let user = node
+                        .get("curator")?
+                        .get("displayName")?
+                        .as_str()?;
+                    let slug = node.get("slug")?.as_str()?;
+                    let title = node.get("title")?.as_str()?;
+
+                    let body = format!("[{}] {}", title, slug);
+                    Some(crate::common::Message {
+                        user: Some(user.to_string()),
+                        timestamp: None,
+                        body,
+                    })
+                })
+                .collect())
+        }
+    }
+    impl Iterator for ClipIterator {
+        type Item = Vec<crate::common::Message>;
+        fn next(&mut self) -> Option<Self::Item> {
+            if self.cursor.is_some() {
+            Some(self.get_next().unwrap())
+            } else {
+            None
+            }
+        }
     }
 }
 
@@ -246,8 +330,8 @@ impl Vod {
             .ok_or("Missing video")?
             .get("broadcastType")
             .ok_or("Missing broadcast type")?
-            .to_string();
-        let vod_type = vod_type.trim_matches('"');
+            .as_str()
+            .ok_or("Could not convert to string")?;
         Ok(match vod_type {
             "HIGHLIGHT" => format!("{}highlight-{}.m3u8", domain_url, id),
             "ARCHIVE" => format!("{}index-dvr.m3u8", domain_url),
@@ -268,7 +352,7 @@ impl std::fmt::Display for Vod {
     }
 }
 
-pub mod chat {
+mod chat {
     use colored::Colorize;
 
     pub struct ChatIterator {
@@ -303,23 +387,22 @@ pub mod chat {
             let messages = comments
                 .iter()
                 .filter_map(|comment| -> Option<crate::common::Message> {
-                    let mut user = comment
-                        .get("commenter")?
-                        .get("name")?
-                        .to_string()
-                        .trim_matches('"')
-                        .to_string();
+                    let mut user = Some(
+                        comment
+                            .get("commenter")?
+                            .get("name")?
+                            .as_str()?
+                            .to_string(),
+                    );
                     let message = comment.get("message")?;
                     let body = message
                         .get("body")?
-                        .to_string()
-                        .trim_matches('"')
+                        .as_str()?
                         .to_string();
                     let colorcode = message.get("user_color");
                     let color = match colorcode {
                         Some(code) => {
-                            let code = code.to_string();
-                            let code = code.trim_matches('"').trim_start_matches('#');
+                            let code = code.as_str()?.trim_start_matches('#');
                             Some(colored::Color::TrueColor {
                                 r: u8::from_str_radix(&code[0..2], 16).unwrap(),
                                 g: u8::from_str_radix(&code[2..4], 16).unwrap(),
@@ -329,14 +412,12 @@ pub mod chat {
                         None => None,
                     };
                     if let Some(color) = color {
-                        user = user.color(color).to_string();
+                        user = Some(user.unwrap().color(color).to_string());
                     }
                     let timestamp = comment
                         .get("content_offset_seconds")?
-                        .to_string()
-                        .trim_matches('"')
-                        .parse()
-                        .unwrap();
+                        .as_f64()?;
+
                     Some(crate::common::Message {
                         user,
                         body,

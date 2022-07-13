@@ -20,25 +20,29 @@ struct Args {
     #[clap(long, value_parser)]
     twitch_tag: Option<String>,
 
+    /// Read titles of twitch clips from a channel
+    #[clap(long, value_parser)]
+    twitch_clips: Option<Vec<String>>,
+
     /// Read chats from all videos within a channel
     #[clap(long, value_parser)]
-    twitch_channels: Option<Vec<String>>,
+    twitch_channel: Option<Vec<String>>,
 
     /// Read chat from a single video
     #[clap(long, value_parser)]
-    twitch_vods: Option<Vec<u32>>,
+    twitch_vod: Option<Vec<u32>>,
 
     /// Read chats from all vods within a blog
     #[clap(long, value_parser)]
-    afreecatv_channels: Option<Vec<String>>,
+    afreecatv_channel: Option<Vec<String>>,
 
     /// Read chat from a single video
     #[clap(long, value_parser)]
-    afreecatv_vods: Option<Vec<u32>>,
+    afreecatv_vod: Option<Vec<u32>>,
 
     /// Read comments from a single tiktok video
     #[clap(long, value_parser)]
-    tiktok_vods: Option<Vec<u64>>,
+    tiktok_vod: Option<Vec<u64>>,
 
     /// Filter chat search results
     #[clap(short, long, value_parser, default_value = "")]
@@ -47,6 +51,7 @@ struct Args {
     #[clap(short, long, parse(from_flag))]
     showall: bool,
 }
+
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
@@ -62,7 +67,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     }
 
-    if let Some(usernames) = args.twitch_channels {
+    if let Some(usernames) = args.twitch_clips {
+        for username in usernames {
+            let channel = crate::twitch::Channel::new(username);
+            let clips = channel.clips();
+            clips.flatten().filter(|c| filter.is_match(c.user.as_ref().unwrap()) || filter.is_match(&c.body)).for_each(|c| println!("{}", c));
+        }
+    }
+
+    if let Some(usernames) = args.twitch_channel {
         for username in usernames {
             let channel = crate::twitch::Channel::new(username);
             let videos = channel.videos()?;
@@ -70,7 +83,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    if let Some(vods) = args.twitch_vods {
+    if let Some(vods) = args.twitch_vod {
         for vod in vods {
             let vod = crate::twitch::Vod::new(vod);
             vod.comments()
@@ -80,7 +93,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    if let Some(usernames) = args.afreecatv_channels {
+    if let Some(usernames) = args.afreecatv_channel {
         for username in usernames {
             let channel = crate::afreecatv::Channel::new(username);
             let videos = channel.videos()?;
@@ -88,7 +101,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    if let Some(vods) = args.afreecatv_vods {
+    if let Some(vods) = args.afreecatv_vod {
         for vod in vods {
             let vod = crate::afreecatv::Vod::new(vod)?;
             vod.comments()
@@ -98,7 +111,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    if let Some(vods) = args.tiktok_vods {
+    if let Some(vods) = args.tiktok_vod {
         for vod in vods {
             let vod = crate::tiktok::Vod::new(vod);
             vod.comments()

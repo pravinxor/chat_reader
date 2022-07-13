@@ -6,7 +6,7 @@ use hhmmss::Hhmmss;
 
 #[derive(Debug)]
 pub struct Message {
-    pub user: String,
+    pub user: Option<String>,
     pub body: String,
     pub timestamp: Option<f64>,
 }
@@ -17,7 +17,10 @@ impl std::fmt::Display for Message {
             let seconds = std::time::Duration::from_secs(seconds as u64);
             write!(f, "[{}]", seconds.hhmmss())?
         }
-        write!(f, "[{}]: {}", self.user, self.body)
+        if let Some(user) = &self.user {
+            write!(f, "[{}]", user)?
+        }
+        write!(f, " {}", self.body)
     }
 }
 

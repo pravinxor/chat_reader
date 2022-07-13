@@ -81,12 +81,14 @@ impl Iterator for ChatIterator {
                 .as_array()?
                 .iter()
                 .flat_map(|comment| -> Option<crate::common::Message> {
-                    let user = comment
-                        .get("user")?
-                        .get("nickname")
-                        .unwrap()
-                        .as_str()?
-                        .to_string();
+                    let user = Some(
+                        comment
+                            .get("user")?
+                            .get("nickname")
+                            .unwrap()
+                            .as_str()?
+                            .to_string(),
+                    );
                     let body = comment.get("text")?.as_str()?.to_string();
                     Some(crate::common::Message {
                         timestamp: None,
