@@ -22,23 +22,23 @@ struct Args {
 
     /// Read chats from all videos within a channel
     #[clap(long, value_parser)]
-    twitch_channel: Option<String>,
+    twitch_channels: Option<Vec<String>>,
 
     /// Read chat from a single video
     #[clap(long, value_parser)]
-    twitch_vod: Option<u32>,
+    twitch_vods: Option<Vec<u32>>,
 
     /// Read chats from all vods within a blog
     #[clap(long, value_parser)]
-    afreecatv_channel: Option<String>,
+    afreecatv_channels: Option<Vec<String>>,
 
     /// Read chat from a single video
     #[clap(long, value_parser)]
-    afreecatv_vod: Option<u32>,
+    afreecatv_vods: Option<Vec<u32>>,
 
     /// Read comments from a single tiktok video
     #[clap(long, value_parser)]
-    tiktok_vod: Option<u64>,
+    tiktok_vods: Option<Vec<u64>>,
 
     /// Filter chat search results
     #[clap(short, long, value_parser, default_value = "")]
@@ -62,40 +62,50 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     }
 
-    if let Some(username) = args.twitch_channel {
-        let channel = crate::twitch::Channel::new(username);
-        let videos = channel.videos()?;
-        crate::common::print_iter(&videos, &filter, args.showall);
+    if let Some(usernames) = args.twitch_channels {
+        for username in usernames {
+            let channel = crate::twitch::Channel::new(username);
+            let videos = channel.videos()?;
+            crate::common::print_iter(&videos, &filter, args.showall);
+        }
     }
 
-    if let Some(vod) = args.twitch_vod {
-        let vod = crate::twitch::Vod::new(vod);
-        vod.comments()
-            .flatten()
-            .filter(|m| filter.is_match(&m.body))
-            .for_each(|comment| println!("{}", comment));
+    if let Some(vods) = args.twitch_vods {
+        for vod in vods {
+            let vod = crate::twitch::Vod::new(vod);
+            vod.comments()
+                .flatten()
+                .filter(|m| filter.is_match(&m.body))
+                .for_each(|comment| println!("{}", comment));
+        }
     }
 
-    if let Some(username) = args.afreecatv_channel {
-        let channel = crate::afreecatv::Channel::new(username);
-        let videos = channel.videos()?;
-        crate::common::print_iter(&videos, &filter, args.showall);
+    if let Some(usernames) = args.afreecatv_channels {
+        for username in usernames {
+            let channel = crate::afreecatv::Channel::new(username);
+            let videos = channel.videos()?;
+            crate::common::print_iter(&videos, &filter, args.showall);
+        }
     }
 
-    if let Some(vod) = args.afreecatv_vod {
-        let vod = crate::afreecatv::Vod::new(vod)?;
-        vod.comments()
-            .flatten()
-            .filter(|m| filter.is_match(&m.body))
-            .for_each(|comment| println!("{}", comment));
+    if let Some(vods) = args.afreecatv_vods {
+        for vod in vods {
+            let vod = crate::afreecatv::Vod::new(vod)?;
+            vod.comments()
+                .flatten()
+                .filter(|m| filter.is_match(&m.body))
+                .for_each(|comment| println!("{}", comment));
+        }
     }
 
-    if let Some(vod) = args.tiktok_vod {
-        let vod = crate::tiktok::Vod::new(vod);
-        vod.comments()
-            .flatten()
-            .filter(|m| filter.is_match(&m.body))
-            .for_each(|comment| println!("{}", comment));
+    if let Some(vods) = args.tiktok_vods {
+        for vod in vods {
+            let vod = crate::tiktok::Vod::new(vod);
+            vod.comments()
+                .flatten()
+                .filter(|m| filter.is_match(&m.body))
+                .for_each(|comment| println!("{}", comment));
+        }
     };
     Ok(())
 }
