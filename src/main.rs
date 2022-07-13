@@ -16,6 +16,10 @@ use clap::Parser;
 #[derive(Parser)]
 #[clap(arg_required_else_help(true))]
 struct Args {
+    /// Load all live channels from tag and read chats from those channels
+    #[clap(long, value_parser)]
+    twitch_tag: Option<String>,
+
     /// Read chats from all videos within a channel
     #[clap(long, value_parser)]
     twitch_channel: Option<String>,
@@ -46,9 +50,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ftype = format!("(?i)({})", args.filter);
     let filter = regex::Regex::new(&ftype)?;
 
+    if let Some(tag) = args.twitch_tag {
+        let tag = crate::twitch::Tag::new(&tag)?;
+        let channels = tag.channels()?;
+        channels.iter().for_each(|channel| {
+            println!("Working on {}", channel.username);
+            crate::common::print_iter(&channel.videos().unwrap(), &filter);
+        });
+    }
+
     if let Some(username) = args.twitch_channel {
         let channel = crate::twitch::Channel::new(username);
-        let videos = channel.videos().unwrap();
+        let videos = channel.videos()?;
         crate::common::print_iter(&videos, &filter);
     }
 

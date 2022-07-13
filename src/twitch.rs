@@ -1,9 +1,110 @@
 use rayon::prelude::*;
 
 const CLIENT_ID: &str = "kimne78kx3ncx6brgo4mv6wki5h1ko";
+const GQL: &str = "https://gql.twitch.tv/gql";
 
+#[derive(Debug)]
+pub struct Tag {
+    id: String,
+}
+
+impl Tag {
+    pub fn new(tag_name: &str) -> Result<Self, Box<dyn std::error::Error>> {
+        let req_json = serde_json::json!([
+                                         {
+                                             "operationName": "SearchLiveTags",
+                                             "variables":{
+                                                 "userQuery": tag_name,
+                                                 "limit": 1
+                                             },
+                                             "extensions":{
+                                                 "persistedQuery": {
+                                                     "version": 1,
+                                                     "sha256Hash": "543cd47a189377344db519b5f9c4f5a2bc0f4b151e7d240469c58488139dbfe6"
+                                                 }
+                                             }
+                                         }
+        ]);
+        let response: serde_json::Value = crate::common::CLIENT
+            .post(GQL)
+            .header("Client-Id", CLIENT_ID)
+            .json(&req_json)
+            .send()?
+            .json()?;
+        let id = response
+            .get(0)
+            .ok_or("Missing idx 0")?
+            .get("data")
+            .ok_or("Missing data")?
+            .get("searchLiveTags")
+            .ok_or("Missing tag list")?
+            .get(0)
+            .ok_or("Missing taglist[0]")?
+            .get("id")
+            .ok_or("Missing id")?
+            .to_string();
+        Ok(Self {
+            id: id.trim_matches('"').to_string(),
+        })
+    }
+
+    pub fn channels(&self) -> Result<Vec<Channel>, Box<dyn std::error::Error>> {
+        let req_json = serde_json::json!([
+                                         {
+                                             "operationName": "BrowsePage_Popular",
+                                             "variables": {
+                                                 "limit": 30,
+                                                 "platformType": "all",
+                                                 "options": {
+                                                     "includeRestricted": [
+                                                         "SUB_ONLY_LIVE"
+                                                     ],
+                                                     "sort": "RELEVANCE",
+                                                     "tags": [
+                                                         self.id
+                                                     ],
+                                                 },
+                                                 "sortTypeIsRecency": false,
+                                                 "freeformTagsEnabled": false
+                                             },
+                                             "extensions":{
+                                                 "persistedQuery": {
+                                                     "version": 1,
+                                                     "sha256Hash": "267d2d2a64e0a0d6206c039ea9948d14a9b300a927d52b2efc52d2486ff0ec65"
+                                                 }
+                                             }
+                                         }
+        ]);
+        let request: serde_json::Value = crate::common::CLIENT
+            .post(GQL)
+            .header("Client-Id", CLIENT_ID)
+            .json(&req_json)
+            .send()?
+            .json()?;
+        let streamlist = request
+            .get(0)
+            .ok_or("Missing idx 0")?
+            .get("data")
+            .ok_or("Missing data")?
+            .get("streams")
+            .ok_or("Missing streams")?
+            .get("edges")
+            .ok_or("Missing edges")?
+            .as_array()
+            .ok_or("Unable to convert edges -> array")?;
+        Ok(streamlist
+            .iter()
+            .flat_map(|e| -> Option<Channel> {
+                let username = e.get("node")?.get("broadcaster")?.get("login")?.as_str()?;
+                Some(Channel::new(username.trim_matches('"')))
+            })
+            .collect())
+    }
+}
+
+#[derive(Debug)]
 pub struct Channel {
-    username: String,
+    pub username: String,
 }
 
 impl Channel {
@@ -30,14 +131,14 @@ impl Channel {
                                              "extensions":{
                                                  "persistedQuery":{
                                                      "version":1,
-                                                     "sha256Hash":"a937f1d22e269e39a03b509f65a7490f9fc247d7f83d6ac1421523e3b68042cb"
+                                                     "sha256Hash": "a937f1d22e269e39a03b509f65a7490f9fc247d7f83d6ac1421523e3b68042cb"
                                                  }
                                              }
                                          }
         ]);
 
         let response: serde_json::Value = crate::common::CLIENT
-            .post("https://gql.twitch.tv/gql")
+            .post(GQL)
             .header("Client-Id", CLIENT_ID)
             .json(&req_json)
             .send()?
@@ -131,7 +232,7 @@ impl Vod {
         ]);
 
         let reponse = crate::common::CLIENT
-            .post("https://gql.twitch.tv/gql")
+            .post(GQL)
             .header("Client-Id", CLIENT_ID)
             .json(&req_json)
             .send()?;
