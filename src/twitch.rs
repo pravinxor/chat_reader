@@ -4,6 +4,86 @@ const CLIENT_ID: &str = "kimne78kx3ncx6brgo4mv6wki5h1ko";
 const GQL: &str = "https://gql.twitch.tv/gql";
 
 #[derive(Debug)]
+pub struct Directory {
+    name: String,
+}
+
+impl Directory {
+    pub fn new<S>(name: S) -> Self
+    where
+        S: Into<String>,
+    {
+        Self { name: name.into() }
+    }
+
+    pub fn channels(&self) -> Result<Vec<Channel>, Box<dyn std::error::Error>> {
+        let req_json = serde_json::json!([
+                                         {
+                                             "operationName": "DirectoryPage_Game",
+                                             "variables": {
+                                                 "imageWidth": 50,
+                                                 "name": self.name,
+                                                 "options": {
+                                                     "includeRestricted":[
+                                                         "SUB_ONLY_LIVE"
+                                                     ],
+                                                     "sort": "RELEVANCE",
+                                                     "recommendationsContext":{
+                                                         "platform": "web"
+                                                     },
+                                                     "requestID": "JIRA-VXP-2397",
+                                                     "freeformTags": null,
+                                                     "tags":[
+                                                     ]
+                                                 },
+                                                 "freeformTagsEnabled": false,
+                                                 "sortTypeIsRecency": false,
+                                                 "limit": 30,
+                                                 "cursor": ""
+                                             },
+                                             "extensions": {
+                                                 "persistedQuery": {
+                                                     "version": 1,
+                                                     "sha256Hash": "749035333f1837aca1c5bae468a11c39604a91c9206895aa90b4657ab6213c24"
+                                                 }
+                                             }
+                                         }
+        ]);
+        let response: serde_json::Value = crate::common::CLIENT
+            .post(GQL)
+            .header("Client-Id", CLIENT_ID)
+            .json(&req_json)
+            .send()?
+            .json()?;
+
+        let channels = response
+            .get(0)
+            .ok_or("Missing idx 0")?
+            .get("data")
+            .ok_or("Missing data")?
+            .get("game")
+            .ok_or("Missing game")?
+            .get("streams")
+            .ok_or("Missing streams")?
+            .get("edges")
+            .ok_or("Missing edges")?
+            .as_array()
+            .ok_or("Unable to convert edges -> Array")?;
+        Ok(channels
+            .iter()
+            .flat_map(|edge| edge.get("node"))
+            .flat_map(|node| node.get("broadcaster"))
+            .flat_map(|broadcaster| -> Option<Channel> {
+                let username = broadcaster.get("login")?.as_str()?;
+                Some(Channel {
+                    username: username.into(),
+                })
+            })
+            .collect())
+    }
+}
+
+#[derive(Debug)]
 pub struct Tag {
     id: String,
 }
@@ -44,9 +124,7 @@ impl Tag {
             .ok_or("Missing id")?
             .as_str()
             .ok_or("Could not convert to string")?;
-        Ok(Self {
-            id: id.to_string(),
-        })
+        Ok(Self { id: id.to_string() })
     }
 
     pub fn channels(&self) -> Result<Vec<Channel>, Box<dyn std::error::Error>> {
@@ -110,7 +188,8 @@ pub struct Channel {
 
 impl Channel {
     pub fn new<S>(username: S) -> Self
-    where S: Into<String>
+    where
+        S: Into<String>,
     {
         Self {
             username: username.into(),
@@ -166,17 +245,8 @@ impl Channel {
             .flat_map(|v| -> Option<Vod> {
                 let vod = v.get("node").unwrap();
                 let title = vod.get("title")?.as_str()?.to_string();
-                let id = vod
-                    .get("id")
-                    .unwrap()
-                    .as_str()?
-                    .parse()
-                    .unwrap();
-                let m3u8 = Vod::m3u8(
-                    id,
-                    vod.get("animatedPreviewURL")?.as_str()?,
-                )
-                .unwrap();
+                let id = vod.get("id").unwrap().as_str()?.parse().unwrap();
+                let m3u8 = Vod::m3u8(id, vod.get("animatedPreviewURL")?.as_str()?).unwrap();
                 Some(Vod { title, id, m3u8 })
             })
             .collect();
@@ -240,15 +310,15 @@ pub mod clips {
                 .ok_or("Missing edges")?
                 .as_array()
                 .ok_or("Unable to convert clips -> array")?;
-            self.cursor = clips.iter().flat_map(|e| -> Option<String> { Some(e.get("cursor")?.as_str()?.to_string()) }).next();
+            self.cursor = clips
+                .iter()
+                .flat_map(|e| -> Option<String> { Some(e.get("cursor")?.as_str()?.to_string()) })
+                .next();
             Ok(clips
                 .iter()
                 .flat_map(|e| e.get("node"))
                 .flat_map(|node| -> Option<crate::common::Message> {
-                    let user = node
-                        .get("curator")?
-                        .get("displayName")?
-                        .as_str()?;
+                    let user = node.get("curator")?.get("displayName")?.as_str()?;
                     let slug = node.get("slug")?.as_str()?;
                     let title = node.get("title")?.as_str()?;
 
@@ -266,9 +336,9 @@ pub mod clips {
         type Item = Vec<crate::common::Message>;
         fn next(&mut self) -> Option<Self::Item> {
             if self.cursor.is_some() {
-            Some(self.get_next().unwrap())
+                Some(self.get_next().unwrap())
             } else {
-            None
+                None
             }
         }
     }
@@ -387,18 +457,10 @@ mod chat {
             let messages = comments
                 .iter()
                 .filter_map(|comment| -> Option<crate::common::Message> {
-                    let mut user = Some(
-                        comment
-                            .get("commenter")?
-                            .get("name")?
-                            .as_str()?
-                            .to_string(),
-                    );
+                    let mut user =
+                        Some(comment.get("commenter")?.get("name")?.as_str()?.to_string());
                     let message = comment.get("message")?;
-                    let body = message
-                        .get("body")?
-                        .as_str()?
-                        .to_string();
+                    let body = message.get("body")?.as_str()?.to_string();
                     let colorcode = message.get("user_color");
                     let color = match colorcode {
                         Some(code) => {
@@ -414,9 +476,7 @@ mod chat {
                     if let Some(color) = color {
                         user = Some(user.unwrap().color(color).to_string());
                     }
-                    let timestamp = comment
-                        .get("content_offset_seconds")?
-                        .as_f64()?;
+                    let timestamp = comment.get("content_offset_seconds")?.as_f64()?;
 
                     Some(crate::common::Message {
                         user,

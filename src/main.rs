@@ -20,6 +20,10 @@ struct Args {
     #[clap(long, value_parser)]
     twitch_tag: Option<String>,
 
+    /// Loads all live channels from a game directory and reads chat from those channels
+    #[clap(long, value_parser)]
+    twitch_directory: Option<String>,
+
     /// Read titles of twitch clips from a channel
     #[clap(long, value_parser)]
     twitch_clips: Option<Vec<String>>,
@@ -52,11 +56,19 @@ struct Args {
     showall: bool,
 }
 
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
     let ftype = format!("(?i)({})", args.filter);
     let filter = regex::Regex::new(&ftype)?;
+
+    if let Some(directory) = args.twitch_directory {
+        let directory = crate::twitch::Directory::new(directory);
+        let channels = directory.channels()?;
+        channels.iter().for_each(|channel| {
+            println!("Working on {}", channel.username);
+            crate::common::print_iter(&channel.videos().unwrap(), &filter, args.showall);
+        });
+    }
 
     if let Some(tag) = args.twitch_tag {
         let tag = crate::twitch::Tag::new(&tag)?;
@@ -71,7 +83,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         for username in usernames {
             let channel = crate::twitch::Channel::new(username);
             let clips = channel.clips();
-            clips.flatten().filter(|c| filter.is_match(c.user.as_ref().unwrap()) || filter.is_match(&c.body)).for_each(|c| println!("{}", c));
+            clips
+                .flatten()
+                .filter(|c| filter.is_match(c.user.as_ref().unwrap()) || filter.is_match(&c.body))
+                .for_each(|c| println!("{}", c));
         }
     }
 
