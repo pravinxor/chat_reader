@@ -50,7 +50,7 @@ struct Args {
 
     /// Filter chat search results
     #[clap(short, long, value_parser, default_value = "")]
-    filter: String,
+    filter: regex::Regex,
 
     #[clap(short, long, parse(from_flag))]
     showall: bool,
@@ -58,8 +58,7 @@ struct Args {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
-    let ftype = format!("(?i)({})", args.filter);
-    let filter = regex::Regex::new(&ftype)?;
+    let filter = args.filter;
 
     if let Some(directory) = args.twitch_directory {
         let directory = crate::twitch::Directory::new(directory);
