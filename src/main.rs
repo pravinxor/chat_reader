@@ -7,6 +7,9 @@ mod afreecatv;
 #[path = "twitch.rs"]
 mod twitch;
 
+#[path = "twitchrecover.rs"]
+mod twitchrecover;
+
 #[path = "tiktok.rs"]
 mod tiktok;
 
@@ -16,6 +19,10 @@ use clap::Parser;
 #[derive(Parser)]
 #[clap(arg_required_else_help(true))]
 struct Args {
+    /// Attempt to recover all recent videos on a twitch channel, returning their (possibly broken) m3u8 links
+    #[clap(long, value_parser)]
+    twitch_recover_channel: Option<String>,
+
     /// Load all live channels from tag and read chats from those channels
     #[clap(long, value_parser)]
     twitch_tag: Option<String>,
@@ -26,27 +33,27 @@ struct Args {
 
     /// Read titles of twitch clips from a channel
     #[clap(long, value_parser)]
-    twitch_clips: Option<Vec<String>>,
+    twitch_clips: Option<String>,
 
     /// Read chats from all videos within a channel
     #[clap(long, value_parser)]
-    twitch_channel: Option<Vec<String>>,
+    twitch_channel: Option<String>,
 
     /// Read chat from a single video
     #[clap(long, value_parser)]
-    twitch_vod: Option<Vec<u32>>,
+    twitch_vod: Option<u32>,
 
     /// Read chats from all vods within a blog
     #[clap(long, value_parser)]
-    afreecatv_channel: Option<Vec<String>>,
+    afreecatv_channel: Option<String>,
 
     /// Read chat from a single video
     #[clap(long, value_parser)]
-    afreecatv_vod: Option<Vec<u32>>,
+    afreecatv_vod: Option<u32>,
 
     /// Read comments from a single tiktok video
     #[clap(long, value_parser)]
-    tiktok_vod: Option<Vec<u64>>,
+    tiktok_vod: Option<u64>,
 
     /// Filter chat search results
     #[clap(short, long, value_parser, default_value = "")]
@@ -59,6 +66,11 @@ struct Args {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
     let filter = args.filter;
+
+    if let Some(username) = args.twitch_recover_channel {
+        let channel = crate::twitchrecover::Channel::new(&username).unwrap();
+        channel.videos()?;
+    }
 
     if let Some(directory) = args.twitch_directory {
         let directory = crate::twitch::Directory::new(directory);
@@ -78,61 +90,49 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     }
 
-    if let Some(usernames) = args.twitch_clips {
-        for username in usernames {
-            let channel = crate::twitch::Channel::new(username);
-            let clips = channel.clips();
-            clips
-                .flatten()
-                .filter(|c| filter.is_match(c.user.as_ref().unwrap()) || filter.is_match(&c.body))
-                .for_each(|c| println!("{}", c));
-        }
+    if let Some(username) = args.twitch_clips {
+        let channel = crate::twitch::Channel::new(username);
+        let clips = channel.clips();
+        clips
+            .flatten()
+            .filter(|c| filter.is_match(c.user.as_ref().unwrap()) || filter.is_match(&c.body))
+            .for_each(|c| println!("{}", c));
     }
 
-    if let Some(usernames) = args.twitch_channel {
-        for username in usernames {
-            let channel = crate::twitch::Channel::new(username);
-            let videos = channel.videos()?;
-            crate::common::print_iter(&videos, &filter, args.showall);
-        }
+    if let Some(username) = args.twitch_channel {
+        let channel = crate::twitch::Channel::new(username);
+        let videos = channel.videos()?;
+        crate::common::print_iter(&videos, &filter, args.showall);
     }
 
-    if let Some(vods) = args.twitch_vod {
-        for vod in vods {
-            let vod = crate::twitch::Vod::new(vod);
-            vod.comments()
-                .flatten()
-                .filter(|m| filter.is_match(&m.body) || filter.is_match(m.user.as_ref().unwrap()))
-                .for_each(|comment| println!("{}", comment));
-        }
+    if let Some(vod) = args.twitch_vod {
+        let vod = crate::twitch::Vod::new(vod);
+        vod.comments()
+            .flatten()
+            .filter(|m| filter.is_match(&m.body) || filter.is_match(m.user.as_ref().unwrap()))
+            .for_each(|comment| println!("{}", comment));
     }
 
-    if let Some(usernames) = args.afreecatv_channel {
-        for username in usernames {
-            let channel = crate::afreecatv::Channel::new(username);
-            let videos = channel.videos()?;
-            crate::common::print_iter(&videos, &filter, args.showall);
-        }
+    if let Some(username) = args.afreecatv_channel {
+        let channel = crate::afreecatv::Channel::new(username);
+        let videos = channel.videos()?;
+        crate::common::print_iter(&videos, &filter, args.showall);
     }
 
-    if let Some(vods) = args.afreecatv_vod {
-        for vod in vods {
-            let vod = crate::afreecatv::Vod::new(vod)?;
-            vod.comments()
-                .flatten()
-                .filter(|m| filter.is_match(&m.body) || filter.is_match(m.user.as_ref().unwrap()))
-                .for_each(|comment| println!("{}", comment));
-        }
+    if let Some(vod) = args.afreecatv_vod {
+        let vod = crate::afreecatv::Vod::new(vod)?;
+        vod.comments()
+            .flatten()
+            .filter(|m| filter.is_match(&m.body) || filter.is_match(m.user.as_ref().unwrap()))
+            .for_each(|comment| println!("{}", comment));
     }
 
-    if let Some(vods) = args.tiktok_vod {
-        for vod in vods {
-            let vod = crate::tiktok::Vod::new(vod);
-            vod.comments()
-                .flatten()
-                .filter(|m| filter.is_match(&m.body) || filter.is_match(m.user.as_ref().unwrap()))
-                .for_each(|comment| println!("{}", comment));
-        }
+    if let Some(vod) = args.tiktok_vod {
+        let vod = crate::tiktok::Vod::new(vod);
+        vod.comments()
+            .flatten()
+            .filter(|m| filter.is_match(&m.body) || filter.is_match(m.user.as_ref().unwrap()))
+            .for_each(|comment| println!("{}", comment));
     };
     Ok(())
 }

@@ -40,7 +40,7 @@ impl Iterator for CaptionIterator {
                 "https://www.tiktok.com/@chloe_dillon/video/{}",
                 self.id
             ))
-            .header(reqwest::header::USER_AGENT, USER_AGENT)
+            .header(reqwest::header::USER_AGENT, crate::common::USER_AGENT)
             .send()
             .unwrap()
             .text()
@@ -57,8 +57,6 @@ impl Iterator for CaptionIterator {
     }
 }
 
-const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.114 Safari/537.36";
-
 impl Iterator for ChatIterator {
     type Item = Vec<crate::common::Message>;
 
@@ -69,7 +67,7 @@ impl Iterator for ChatIterator {
                 self.id, self.cursor
             ))
             .header(reqwest::header::REFERER, "https://www.tiktok.com/")
-            .header(reqwest::header::USER_AGENT, USER_AGENT)
+            .header(reqwest::header::USER_AGENT, crate::common::USER_AGENT)
             .send()
             .unwrap()
             .json()
