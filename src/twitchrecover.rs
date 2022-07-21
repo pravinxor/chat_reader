@@ -53,7 +53,7 @@ impl Channel {
     pub fn videos(&self) -> Result<(), Box<dyn std::error::Error>> {
         let json: serde_json::Value = crate::common::CLIENT
             .get(format!(
-                "https://sullygnome.com/api/tables/channeltables/streams/90/{}/%20/1/1/desc/0/100",
+                "https://sullygnome.com/api/tables/channeltables/streams/365/{}/%20/1/1/desc/0/100",
                 self.value
             ))
             .header(reqwest::header::USER_AGENT, crate::common::USER_AGENT)
