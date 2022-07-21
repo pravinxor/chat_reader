@@ -42,11 +42,8 @@ impl Channel {
             .ok_or("Missing value")?
             .as_u64()
             .ok_or("Could not convert value -> u64")?;
-       
 
-        Ok(Self {
-            value: top_value,
-        })
+        Ok(Self { value: top_value })
     }
 
     fn unix_time(time: &str) -> Result<i64, chrono::ParseError> {
@@ -57,7 +54,7 @@ impl Channel {
         let json: serde_json::Value = crate::common::CLIENT
             .get(format!(
                 "https://sullygnome.com/api/tables/channeltables/streams/90/{}/%20/1/1/desc/0/100",
-               self.value 
+                self.value
             ))
             .header(reqwest::header::USER_AGENT, crate::common::USER_AGENT)
             .send()?
@@ -68,8 +65,7 @@ impl Channel {
             .as_array()
             .ok_or("Could not convert data -> array")?;
 
-        data
-            .par_iter()
+        data.par_iter()
             .flat_map(|video| -> Option<Video> {
                 let stream_id = video.get("streamId")?.as_u64()?;
                 let start_timestamp = video.get("startDateTime")?.as_str()?;
@@ -78,7 +74,7 @@ impl Channel {
                 Video::new(stream_id, unix_timestamp, channel_name)
             })
             .for_each(|v| println!("{}\n", v));
-            Ok(())
+        Ok(())
     }
 }
 

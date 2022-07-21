@@ -85,16 +85,17 @@ impl Directory {
 
 #[derive(Debug)]
 pub struct Tag {
-    id: String,
+    ids: Vec<String>,
 }
 
 impl Tag {
-    pub fn new(tag_name: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        let req_json = serde_json::json!([
-                                         {
-                                             "operationName": "SearchLiveTags",
-                                             "variables":{
-                                                 "userQuery": tag_name,
+    pub fn new(tags: &[&str]) -> Self {
+        let ids = tags.par_iter().flat_map(|tag_name| -> Result<serde_json::Value, reqwest::Error> {
+            let req_json = serde_json::json!([
+                                             {
+                                                 "operationName": "SearchLiveTags",
+                                                 "variables":{
+                                                 "userQuery": &tag_name,
                                                  "limit": 1
                                              },
                                              "extensions":{
@@ -105,26 +106,23 @@ impl Tag {
                                              }
                                          }
         ]);
-        let response: serde_json::Value = crate::common::CLIENT
+        crate::common::CLIENT
             .post(GQL)
             .header("Client-Id", CLIENT_ID)
             .json(&req_json)
             .send()?
-            .json()?;
-        let id = response
-            .get(0)
-            .ok_or("Missing idx 0")?
-            .get("data")
-            .ok_or("Missing data")?
-            .get("searchLiveTags")
-            .ok_or("Missing tag list")?
-            .get(0)
-            .ok_or("Missing taglist[0]")?
-            .get("id")
-            .ok_or("Missing id")?
-            .as_str()
-            .ok_or("Could not convert to string")?;
-        Ok(Self { id: id.to_string() })
+            .json()
+        }).flat_map(|json| -> Option<String> {
+        let id = json
+            .get(0)?
+            .get("data")?
+            .get("searchLiveTags")?
+            .get(0)?
+            .get("id")?
+            .as_str()?;
+        Some(id.to_string())
+        }).collect();
+        Self { ids }
     }
 
     pub fn channels(&self) -> Result<Vec<Channel>, Box<dyn std::error::Error>> {
@@ -139,9 +137,7 @@ impl Tag {
                                                          "SUB_ONLY_LIVE"
                                                      ],
                                                      "sort": "RELEVANCE",
-                                                     "tags": [
-                                                         self.id
-                                                     ],
+                                                     "tags": self.ids,
                                                  },
                                                  "sortTypeIsRecency": false,
                                                  "freeformTagsEnabled": false

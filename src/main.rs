@@ -25,7 +25,7 @@ struct Args {
 
     /// Load all live channels from tag and read chats from those channels
     #[clap(long, value_parser)]
-    twitch_tag: Option<String>,
+    twitch_tags: Option<String>,
 
     /// Loads all live channels from a game directory and reads chat from those channels
     #[clap(long, value_parser)]
@@ -81,8 +81,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     }
 
-    if let Some(tag) = args.twitch_tag {
-        let tag = crate::twitch::Tag::new(&tag)?;
+    if let Some(tag) = args.twitch_tags {
+        let tags: Vec<&str> = tag.split_whitespace().collect();
+        let tag = crate::twitch::Tag::new(&tags);
         let channels = tag.channels()?;
         channels.iter().for_each(|channel| {
             println!("Working on {}", channel.username);
