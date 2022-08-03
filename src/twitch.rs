@@ -215,7 +215,10 @@ impl Channel {
     }
 
     pub fn clips(&self) -> self::clips::ClipIterator {
-        self::clips::ClipIterator::new(&self.username)
+        self::clips::ClipIterator {
+            username: &self.username,
+            cursor: Some(String::from("")),
+        }
     }
 
     pub fn videos(&self) -> Result<Vec<Vod>, Box<dyn std::error::Error>> {
@@ -273,21 +276,12 @@ impl Channel {
 }
 
 pub mod clips {
-    pub struct ClipIterator {
-        username: String,
-        cursor: Option<String>,
+    pub struct ClipIterator<'a> {
+        pub username: &'a str,
+        pub cursor: Option<String>,
     }
 
-    impl ClipIterator {
-        pub fn new<S>(username: S) -> Self
-        where
-            S: Into<String>,
-        {
-            Self {
-                username: username.into(),
-                cursor: Some(String::from("")),
-            }
-        }
+    impl ClipIterator<'_> {
         fn get_next(&mut self) -> Result<Vec<crate::common::Message>, Box<dyn std::error::Error>> {
             let req_json = serde_json::json!([
                                              {
@@ -350,7 +344,7 @@ pub mod clips {
                 .collect())
         }
     }
-    impl Iterator for ClipIterator {
+    impl Iterator for ClipIterator<'_> {
         type Item = Vec<crate::common::Message>;
         fn next(&mut self) -> Option<Self::Item> {
             if self.cursor.is_some() {
@@ -510,7 +504,7 @@ mod chat {
                 })
                 .collect();
             match comment_json.get("_next") {
-                Some(next) => self.cursor = Some(next.to_string().trim_matches('"').to_string()),
+                Some(next) => self.cursor = Some(next.as_str().unwrap().to_string()),
                 None => self.cursor = None,
             }
             Ok(messages)
