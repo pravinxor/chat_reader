@@ -354,7 +354,13 @@ pub mod clips {
         type Item = Vec<crate::common::Message>;
         fn next(&mut self) -> Option<Self::Item> {
             if self.cursor.is_some() {
-                Some(self.get_next().unwrap())
+                match self.get_next() {
+                    Ok(next) => Some(next),
+                    Err(e) => {
+                        eprintln!("{}", e);
+                        None
+                    }
+                }
             } else {
                 None
             }
