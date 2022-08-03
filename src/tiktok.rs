@@ -36,10 +36,7 @@ impl Iterator for CaptionIterator {
     type Item = Vec<crate::common::Message>;
     fn next(&mut self) -> Option<Self::Item> {
         let response = crate::common::CLIENT
-            .get(format!(
-                "https://www.tiktok.com/@chloe_dillon/video/{}",
-                self.id
-            ))
+            .get(format!("https://www.tiktok.com/@tiktok/video/{}", self.id))
             .header(reqwest::header::USER_AGENT, crate::common::USER_AGENT)
             .send()
             .unwrap()
