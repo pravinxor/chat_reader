@@ -166,7 +166,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Twitch::Tags { tags, opts } => {
                 let tags: Vec<&str> = tags.split_whitespace().collect();
                 let tags = crate::twitch::Tag::new(&tags);
-                for channel in tags.channels()? {
+                for channel in tags.channels().flatten() {
                     println!("Working on {}", channel.username.bold());
                     handle_twitch_channel(channel, &opts, &filter)?
                 }

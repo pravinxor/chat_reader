@@ -125,55 +125,77 @@ impl Tag {
         Self { ids }
     }
 
-    pub fn channels(&self) -> Result<Vec<Channel>, Box<dyn std::error::Error>> {
+    pub fn channels(&self) -> TagIterator {
+        TagIterator {
+            ids: &self.ids,
+            cursor: String::from(""),
+        }
+    }
+}
+
+pub struct TagIterator<'a> {
+    ids: &'a [String],
+    cursor: String,
+}
+
+impl Iterator for TagIterator<'_> {
+    type Item = Vec<Channel>;
+    fn next(&mut self) -> Option<Self::Item> {
         let req_json = serde_json::json!([
-                                         {
-                                             "operationName": "BrowsePage_Popular",
-                                             "variables": {
-                                                 "limit": 30,
-                                                 "platformType": "all",
-                                                 "options": {
-                                                     "includeRestricted": [
-                                                         "SUB_ONLY_LIVE"
-                                                     ],
-                                                     "sort": "RELEVANCE",
-                                                     "tags": self.ids,
-                                                 },
-                                                 "sortTypeIsRecency": false,
-                                                 "freeformTagsEnabled": false
-                                             },
-                                             "extensions":{
-                                                 "persistedQuery": {
-                                                     "version": 1,
-                                                     "sha256Hash": "267d2d2a64e0a0d6206c039ea9948d14a9b300a927d52b2efc52d2486ff0ec65"
-                                                 }
-                                             }
-                                         }
-        ]);
+        {
+            "operationName": "BrowsePage_Popular",
+            "variables": {
+                "imageWidth": 50,
+                "limit": 30,
+                "platformType": "all",
+                "options": {
+                    "sort": "RELEVANCE",
+                    "freeformTags": null,
+                    "tags": self.ids,
+                    "recommendationsContext": {
+                        "platform": "web"
+                    },
+                    "requestID": "JIRA-VXP-2397"
+                },
+                "sortTypeIsRecency": false,
+                "freeformTagsEnabled": false,
+                "cursor": self.cursor,
+            },
+            "extensions": {
+                "persistedQuery": {
+                    "version": 1,
+                    "sha256Hash": "267d2d2a64e0a0d6206c039ea9948d14a9b300a927d52b2efc52d2486ff0ec65"
+                }
+            }
+        }]);
         let request: serde_json::Value = crate::common::CLIENT
             .post(GQL)
             .header("Client-Id", CLIENT_ID)
+            .header("X-Device-Id", "1UTTXkkDGQnD17zO8HvZ2mFiFONpG1ft")
             .json(&req_json)
-            .send()?
-            .json()?;
+            .send()
+            .unwrap()
+            .json()
+            .unwrap();
         let streamlist = request
-            .get(0)
-            .ok_or("Missing idx 0")?
-            .get("data")
-            .ok_or("Missing data")?
-            .get("streams")
-            .ok_or("Missing streams")?
-            .get("edges")
-            .ok_or("Missing edges")?
-            .as_array()
-            .ok_or("Unable to convert edges -> array")?;
-        Ok(streamlist
+            .get(0)?
+            .get("data")?
+            .get("streams")?
+            .get("edges")?
+            .as_array()?;
+        let out = streamlist
             .iter()
             .flat_map(|e| -> Option<Channel> {
                 let username = e.get("node")?.get("broadcaster")?.get("login")?.as_str()?;
                 Some(Channel::new(username))
             })
-            .collect())
+            .collect();
+        if let Some(cursor) = streamlist.get(25)?.get("cursor") {
+            self.cursor = cursor.as_str()?.to_string();
+            Some(out)
+        } else {
+            None
+        }
     }
 }
 
