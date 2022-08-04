@@ -157,7 +157,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             Twitch::Directory { name, opts } => {
                 let directory = crate::twitch::Directory::new(&name);
-                for channel in directory.channels()? {
+                for channel in directory.channels().flatten() {
                     println!("Working on {}", channel.username.bold());
                     handle_twitch_channel(channel, &opts, &filter)?
                 }

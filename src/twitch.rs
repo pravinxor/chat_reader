@@ -16,60 +16,68 @@ impl Directory {
         Self { name: name.into() }
     }
 
-    pub fn channels(&self) -> Result<Vec<Channel>, Box<dyn std::error::Error>> {
-        let req_json = serde_json::json!([
-                                         {
-                                             "operationName": "DirectoryPage_Game",
-                                             "variables": {
-                                                 "imageWidth": 50,
-                                                 "name": self.name,
-                                                 "options": {
-                                                     "includeRestricted":[
-                                                         "SUB_ONLY_LIVE"
-                                                     ],
-                                                     "sort": "RELEVANCE",
-                                                     "recommendationsContext":{
-                                                         "platform": "web"
-                                                     },
-                                                     "requestID": "JIRA-VXP-2397",
-                                                     "freeformTags": null,
-                                                     "tags":[
-                                                     ]
-                                                 },
-                                                 "freeformTagsEnabled": false,
-                                                 "sortTypeIsRecency": false,
-                                                 "limit": 30,
-                                                 "cursor": ""
-                                             },
-                                             "extensions": {
-                                                 "persistedQuery": {
-                                                     "version": 1,
-                                                     "sha256Hash": "749035333f1837aca1c5bae468a11c39604a91c9206895aa90b4657ab6213c24"
-                                                 }
-                                             }
-                                         }
-        ]);
+    pub fn channels(&self) -> DirectoryIterator {
+        DirectoryIterator {
+            name: &self.name,
+            cursor: String::from(""),
+        }
+    }
+}
+pub struct DirectoryIterator<'a> {
+    name: &'a str,
+    cursor: String,
+}
+
+impl Iterator for DirectoryIterator<'_> {
+    type Item = Vec<Channel>;
+    fn next(&mut self) -> Option<Self::Item> {
+        let req_json = serde_json::json!([{
+            "operationName": "DirectoryPage_Game",
+            "variables": {
+                "imageWidth": 50,
+                "name": self.name,
+                "options": {
+                    "includeRestricted": [
+                        "SUB_ONLY_LIVE"
+                    ],
+                    "sort": "RELEVANCE",
+                    "recommendationsContext": {
+                        "platform": "web"
+                    },
+                    "requestID": "JIRA-VXP-2397",
+                    "freeformTags": null,
+                    "tags":[]
+                },
+                "freeformTagsEnabled": false,
+                "sortTypeIsRecency": false,
+                "limit": 30,
+                "cursor": self.cursor
+            },
+            "extensions": {
+                "persistedQuery": {
+                    "version": 1,
+                    "sha256Hash": "749035333f1837aca1c5bae468a11c39604a91c9206895aa90b4657ab6213c24"
+                }
+            }
+        }]);
         let response: serde_json::Value = crate::common::CLIENT
             .post(GQL)
             .header("Client-Id", CLIENT_ID)
+            .header("X-Device-Id", "1UTTXkkDGQnD17zO8HvZ2mFiFONpG1ft")
             .json(&req_json)
-            .send()?
-            .json()?;
+            .send()
+            .unwrap()
+            .json()
+            .unwrap();
 
         let channels = response
-            .get(0)
-            .ok_or("Missing idx 0")?
-            .get("data")
-            .ok_or("Missing data")?
-            .get("game")
-            .ok_or("Missing game")?
-            .get("streams")
-            .ok_or("Missing streams")?
-            .get("edges")
-            .ok_or("Missing edges")?
-            .as_array()
-            .ok_or("Unable to convert edges -> Array")?;
-        Ok(channels
+            .get(0)?
+            .get("data")?
+            .get("game")?
+            .get("streams")?
+            .get("edges")?
+            .as_array()?;
+        let out = channels
             .iter()
             .flat_map(|edge| edge.get("node"))
             .flat_map(|node| node.get("broadcaster"))
@@ -79,7 +87,13 @@ impl Directory {
                     username: username.into(),
                 })
             })
-            .collect())
+            .collect();
+        if let Some(cursor) = channels.get(25)?.get("cursor") {
+            self.cursor = cursor.as_str()?.to_string();
+            Some(out)
+        } else {
+            None
+        }
     }
 }
 
@@ -191,7 +205,7 @@ impl Iterator for TagIterator<'_> {
             })
             .collect();
         if let Some(cursor) = streamlist.get(25)?.get("cursor") {
-            self.cursor = cursor.as_str()?.to_string();
+            self.cursor = cursor.as_str()?.into();
             Some(out)
         } else {
             None
@@ -324,7 +338,7 @@ pub mod clips {
                 .ok_or("Unable to convert clips -> array")?;
             self.cursor = clips
                 .iter()
-                .flat_map(|e| -> Option<String> { Some(e.get("cursor")?.as_str()?.to_string()) })
+                .flat_map(|e| -> Option<String> { Some(e.get("cursor")?.as_str()?.into()) })
                 .next();
             Ok(clips
                 .iter()
@@ -336,7 +350,7 @@ pub mod clips {
 
                     let body = format!("[{}] {}", title, slug);
                     Some(crate::common::Message {
-                        user: Some(user.to_string()),
+                        user: Some(user.into()),
                         timestamp: None,
                         body,
                     })
@@ -475,10 +489,10 @@ mod chat {
             let messages = comments
                 .iter()
                 .filter_map(|comment| -> Option<crate::common::Message> {
-                    let mut user =
-                        Some(comment.get("commenter")?.get("name")?.as_str()?.to_string());
+                    let mut user: Option<String> =
+                        Some(comment.get("commenter")?.get("name")?.as_str()?.into());
                     let message = comment.get("message")?;
-                    let body = message.get("body")?.as_str()?.to_string();
+                    let body = message.get("body")?.as_str()?.into();
                     let colorcode = message.get("user_color");
                     let color = match colorcode {
                         Some(code) => {
@@ -504,7 +518,7 @@ mod chat {
                 })
                 .collect();
             match comment_json.get("_next") {
-                Some(next) => self.cursor = Some(next.as_str().unwrap().to_string()),
+                Some(next) => self.cursor = Some(next.as_str().unwrap().into()),
                 None => self.cursor = None,
             }
             Ok(messages)
