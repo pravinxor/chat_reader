@@ -19,4 +19,4 @@ A fast tool for sifting through transcripts across platforms, with an assortment
 #### You can also try to recover VODs from a Twitch channel, if they've been removed recently
 `./chat_reader twitch channel --recover "twitch"`
 
-## There is also support for AfreecaTV and basic support for TikTok, with more support coming later on
+### There is currently support for Twitch & AfreecaTV along with basic functionality for TikTok, with more robust support coming later on
