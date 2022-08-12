@@ -47,6 +47,12 @@ struct TwitchChannelOpts {
     showall: bool,
 }
 
+impl TwitchChannelOpts {
+    fn any(&self) -> bool {
+        self.clips || self.vods || self.recover
+    }
+}
+
 #[derive(Subcommand)]
 enum DirectoryClips {
     DirectoryClips { recency: crate::twitch::Recency },
@@ -184,7 +190,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .for_each(|c| println!("{}", c));
                 }
 
-                if opts.vods || opts.clips || opts.recover {
+                if opts.any() {
                     for channel in directory.channels().flatten() {
                         println!("Working on {}", channel.username.bold());
                         handle_twitch_channel(channel, &opts, &filter)?
@@ -193,9 +199,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             Twitch::Tags { tags, opts } => {
-                for channel in crate::twitch::Tag::channels(&tags).flatten() {
-                    println!("Working on {}", channel.username.bold());
-                    handle_twitch_channel(channel, &opts, &filter)?
+                if opts.any() {
+                    for channel in crate::twitch::Tag::channels(&tags).flatten() {
+                        println!("Working on {}", channel.username.bold());
+                        handle_twitch_channel(channel, &opts, &filter)?
+                    }
                 }
             }
         },
