@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use rayon::prelude::*;
 
 const CLIENT_ID: &str = "kimne78kx3ncx6brgo4mv6wki5h1ko";
@@ -224,6 +226,19 @@ impl Iterator for DirectoryIterator<'_> {
 #[derive(Debug)]
 pub struct Tag {
     ids: Vec<String>,
+}
+
+impl FromStr for Tag {
+    type Err = &'static str;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s: Vec<&str> = s.split_whitespace().collect();
+        let tags = Self::new(&s);
+        if tags.ids.is_empty() {
+            Err("No qualifying tags were found")
+        } else {
+            Ok(tags)
+        }
+    }
 }
 
 impl Tag {
