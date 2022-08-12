@@ -76,7 +76,7 @@ enum Twitch {
         opts: TwitchChannelOpts,
     },
     Tags {
-        tags: crate::twitch::Tag,
+        tags: Vec<crate::twitch::Tag>,
 
         /// Channel Options
         #[clap(flatten)]
@@ -193,7 +193,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             Twitch::Tags { tags, opts } => {
-                for channel in tags.channels().flatten() {
+                for channel in crate::twitch::Tag::channels(&tags).flatten() {
                     println!("Working on {}", channel.username.bold());
                     handle_twitch_channel(channel, &opts, &filter)?
                 }

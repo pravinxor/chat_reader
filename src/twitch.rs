@@ -225,73 +225,67 @@ impl Iterator for DirectoryIterator<'_> {
 
 #[derive(Debug)]
 pub struct Tag {
-    ids: Vec<String>,
+    id: String,
 }
 
 impl FromStr for Tag {
     type Err = &'static str;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let s: Vec<&str> = s.split_whitespace().collect();
-        let tags = Self::new(&s);
-        if tags.ids.is_empty() {
-            Err("No qualifying tags were found")
-        } else {
-            Ok(tags)
+        match Self::new(s) {
+            Some(tag) => Ok(tag),
+            None => Err("Tag could not be found"),
         }
     }
 }
 
 impl Tag {
-    pub fn new(tags: &[&str]) -> Self {
-        let ids = tags.par_iter().flat_map(|tag_name| -> Result<serde_json::Value, reqwest::Error> {
-            let req_json = serde_json::json!([
-                                             {
-                                                 "operationName": "SearchLiveTags",
-                                                 "variables":{
-                                                 "userQuery": &tag_name,
-                                                 "limit": 1
-                                             },
-                                             "extensions":{
-                                                 "persistedQuery": {
-                                                     "version": 1,
-                                                     "sha256Hash": "543cd47a189377344db519b5f9c4f5a2bc0f4b151e7d240469c58488139dbfe6"
-                                                 }
-                                             }
-                                         }
-        ]);
-        crate::common::CLIENT
+    pub fn new(tag_name: &str) -> Option<Self> {
+        let req_json = serde_json::json!([{
+            "operationName": "SearchLiveTags",
+            "variables":{
+                "userQuery": tag_name,
+                "limit": 1
+            },
+            "extensions":{
+                "persistedQuery": {
+                    "version": 1,
+                    "sha256Hash": "543cd47a189377344db519b5f9c4f5a2bc0f4b151e7d240469c58488139dbfe6"
+                }
+            }
+        }]);
+        let response: serde_json::Value = crate::common::CLIENT
             .post(GQL)
             .header("Client-Id", CLIENT_ID)
             .json(&req_json)
-            .send()?
+            .send()
+            .unwrap()
             .json()
-        }).flat_map(|json| -> Option<String> {
-        let id = json
+            .unwrap();
+        let id = response
             .get(0)?
             .get("data")?
             .get("searchLiveTags")?
             .get(0)?
             .get("id")?
             .as_str()?;
-        Some(id.to_string())
-        }).collect();
-        Self { ids }
+        Some(Self { id: id.to_owned() })
     }
 
-    pub fn channels(&self) -> TagIterator {
+    pub fn channels(tags: &[Tag]) -> TagIterator {
+        let tags = tags.iter().map(|t| t.id.to_owned()).collect();
         TagIterator {
-            ids: &self.ids,
+            ids: tags,
             cursor: String::from(""),
         }
     }
 }
 
-pub struct TagIterator<'a> {
-    ids: &'a [String],
+pub struct TagIterator {
+    ids: Vec<String>,
     cursor: String,
 }
 
-impl Iterator for TagIterator<'_> {
+impl Iterator for TagIterator {
     type Item = Vec<Channel>;
     fn next(&mut self) -> Option<Self::Item> {
         let req_json = serde_json::json!([
