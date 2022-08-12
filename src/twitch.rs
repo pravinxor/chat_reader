@@ -3,6 +3,44 @@ use rayon::prelude::*;
 const CLIENT_ID: &str = "kimne78kx3ncx6brgo4mv6wki5h1ko";
 const GQL: &str = "https://gql.twitch.tv/gql";
 
+#[derive(PartialEq)]
+pub enum Recency {
+    AllTime,
+    LastMonth,
+    LastWeek,
+    LastDay,
+}
+
+impl Recency {
+    fn as_str(&self) -> &'static str {
+        match self {
+            Recency::AllTime => "ALL_TIME",
+            Recency::LastMonth => "LAST_MONTH",
+            Recency::LastWeek => "LAST_WEEK",
+            Recency::LastDay => "LAST_DAY",
+        }
+    }
+}
+
+impl std::fmt::Display for Recency {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl std::str::FromStr for Recency {
+    type Err = &'static str;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.trim() {
+            "ALL_TIME" => Ok(Recency::AllTime),
+            "LAST_MONTH" => Ok(Recency::LastMonth),
+            "LAST_WEEK" => Ok(Recency::LastWeek),
+            "LAST_DAY" => Ok(Recency::LastDay),
+            _ => Err(r#"Expected: ["ALL_TIME", "LAST_MONTH", "LAST_WEEK", "LAST_DAY"]"#),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Directory {
     name: String,
@@ -22,7 +60,93 @@ impl Directory {
             cursor: String::from(""),
         }
     }
+    pub fn clips(&self, recency: Recency) -> DirectoryClipIterator {
+        DirectoryClipIterator {
+            name: &self.name,
+            recency,
+            cursor: Some(String::from("")),
+        }
+    }
 }
+
+pub struct DirectoryClipIterator<'a> {
+    name: &'a str,
+    recency: Recency,
+    cursor: Option<String>,
+}
+
+impl Iterator for DirectoryClipIterator<'_> {
+    type Item = Vec<crate::common::Message>;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.cursor.as_ref()?;
+
+        let req_json = serde_json::json!([{
+            "operationName": "ClipsCards__Game",
+            "variables": {
+                "gameName": self.name,
+                "limit": 20,
+                "cursor": self.cursor.as_ref().unwrap(),
+                "criteria": {
+                    "languages": [],
+                    "filter": self.recency.as_str()
+                }
+            },
+            "extensions": {
+                "persistedQuery": {
+                    "version": 1,
+                    "sha256Hash": "0d8d0eba9fc7ef77de54a7d933998e21ad7a1274c867ec565ac14ffdce77b1f9"
+                }
+            }
+        }]);
+        self.cursor = None;
+
+        let edges;
+        loop {
+            let response: serde_json::Value = crate::common::CLIENT
+                .post(GQL)
+                .header("Client-Id", CLIENT_ID)
+                .header("X-Device-Id", "1UTTXkkDGQnD17zO8HvZ2mFiFONpG1ft")
+                .json(&req_json)
+                .send()
+                .unwrap()
+                .json()
+                .unwrap();
+
+            let clips = response.get(0)?.get("data")?.get("game")?.get("clips")?;
+            if clips.is_null() {
+                continue;
+            }
+            edges = clips.get("edges")?.as_array()?.to_owned();
+            break;
+        }
+
+        self.cursor = edges
+            .iter()
+            .map(|edge| edge.get("cursor")?.as_str())
+            .last()
+            .map(|cursor| cursor.unwrap().to_owned());
+
+        Some(
+            edges
+                .iter()
+                .flat_map(|edge| edge.get("node"))
+                .flat_map(|node| -> Option<crate::common::Message> {
+                    let title = node.get("title")?.as_str()?;
+                    let slug = node.get("slug")?.as_str()?;
+                    let user = node.get("broadcaster")?.get("displayName")?.as_str()?;
+
+                    let body = format!("[{}] {}", title, slug);
+                    Some(crate::common::Message {
+                        body,
+                        timestamp: None,
+                        user: Some(user.to_owned()),
+                    })
+                })
+                .collect(),
+        )
+    }
+}
+
 pub struct DirectoryIterator<'a> {
     name: &'a str,
     cursor: String,
@@ -304,7 +428,7 @@ pub mod clips {
                                                  "login": self.username,
                                                  "limit": 100,
                                                  "criteria": {
-                                                     "filter": "ALL_TIME"
+                                                     "filter": super::Recency::AllTime.as_str()
                                                  },
                                                  "cursor": self.cursor,
                                                  },

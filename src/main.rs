@@ -48,6 +48,11 @@ struct TwitchChannelOpts {
 }
 
 #[derive(Subcommand)]
+enum DirectoryClips {
+    DirectoryClips { recency: crate::twitch::Recency },
+}
+
+#[derive(Subcommand)]
 enum Twitch {
     Vod {
         id: u32,
@@ -61,12 +66,19 @@ enum Twitch {
     Directory {
         name: String,
 
+        /// Retrieves the clips associated with directory, which can be from channels that are no
+        /// longer live
+        #[clap(subcommand)]
+        directory_clips: Option<DirectoryClips>,
+
+        /// Channel Options
         #[clap(flatten)]
         opts: TwitchChannelOpts,
     },
     Tags {
         tags: String,
 
+        /// Channel Options
         #[clap(flatten)]
         opts: TwitchChannelOpts,
     },
@@ -155,11 +167,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 handle_twitch_channel(crate::twitch::Channel::new(username), &opts, &filter)?
             }
 
-            Twitch::Directory { name, opts } => {
+            Twitch::Directory {
+                name,
+                directory_clips,
+                opts,
+            } => {
                 let directory = crate::twitch::Directory::new(&name);
-                for channel in directory.channels().flatten() {
-                    println!("Working on {}", channel.username.bold());
-                    handle_twitch_channel(channel, &opts, &filter)?
+
+                if let Some(DirectoryClips::DirectoryClips { recency }) = directory_clips {
+                    directory
+                        .clips(recency)
+                        .flatten()
+                        .filter(|c| {
+                            filter.is_match(c.user.as_ref().unwrap()) || filter.is_match(&c.body)
+                        })
+                        .for_each(|c| println!("{}", c));
+                }
+
+                if opts.vods || opts.clips || opts.recover {
+                    for channel in directory.channels().flatten() {
+                        println!("Working on {}", channel.username.bold());
+                        handle_twitch_channel(channel, &opts, &filter)?
+                    }
                 }
             }
 
