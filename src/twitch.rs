@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use rayon::prelude::*;
 
 const CLIENT_ID: &str = "kimne78kx3ncx6brgo4mv6wki5h1ko";
@@ -224,70 +222,26 @@ impl Iterator for DirectoryIterator<'_> {
 }
 
 #[derive(Debug)]
-pub struct Tag {
-    id: String,
-}
-
-impl FromStr for Tag {
-    type Err = &'static str;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match Self::new(s) {
-            Some(tag) => Ok(tag),
-            None => Err("Tag could not be found"),
-        }
-    }
-}
+pub struct Tag;
 
 impl Tag {
-    pub fn new(tag_name: &str) -> Option<Self> {
-        let req_json = serde_json::json!([{
-            "operationName": "SearchLiveTags",
-            "variables":{
-                "userQuery": tag_name,
-                "limit": 1
-            },
-            "extensions":{
-                "persistedQuery": {
-                    "version": 1,
-                    "sha256Hash": "543cd47a189377344db519b5f9c4f5a2bc0f4b151e7d240469c58488139dbfe6"
-                }
-            }
-        }]);
-        let response: serde_json::Value = crate::common::CLIENT
-            .post(GQL)
-            .header("Client-Id", CLIENT_ID)
-            .json(&req_json)
-            .send()
-            .unwrap()
-            .json()
-            .unwrap();
-        let id = response
-            .get(0)?
-            .get("data")?
-            .get("searchLiveTags")?
-            .get(0)?
-            .get("id")?
-            .as_str()?;
-        Some(Self { id: id.to_owned() })
-    }
-
-    pub fn channels(tags: &[Tag]) -> TagIterator {
-        let tags = tags.iter().map(|t| t.id.to_owned()).collect();
+    pub fn channels(tags: &[String]) -> TagIterator {
         TagIterator {
-            ids: tags,
-            cursor: String::from(""),
+            tags: tags.to_vec(),
+            cursor: Some(String::from("")),
         }
     }
 }
 
 pub struct TagIterator {
-    ids: Vec<String>,
-    cursor: String,
+    tags: Vec<String>,
+    cursor: Option<String>,
 }
 
 impl Iterator for TagIterator {
     type Item = Vec<Channel>;
     fn next(&mut self) -> Option<Self::Item> {
+        self.cursor.as_ref()?;
         let req_json = serde_json::json!([
         {
             "operationName": "BrowsePage_Popular",
@@ -297,15 +251,14 @@ impl Iterator for TagIterator {
                 "platformType": "all",
                 "options": {
                     "sort": "RELEVANCE",
-                    "freeformTags": null,
-                    "tags": self.ids,
+                    "freeformTags": self.tags,
                     "recommendationsContext": {
                         "platform": "web"
                     },
                     "requestID": "JIRA-VXP-2397"
                 },
                 "sortTypeIsRecency": false,
-                "freeformTagsEnabled": false,
+                "freeformTagsEnabled": true,
                 "cursor": self.cursor,
             },
             "extensions": {
@@ -337,12 +290,16 @@ impl Iterator for TagIterator {
                 Some(Channel::new(username))
             })
             .collect();
-        if let Some(cursor) = streamlist.get(25)?.get("cursor") {
-            self.cursor = cursor.as_str()?.into();
-            Some(out)
+        self.cursor = if let Some(stream) = streamlist.get(25) {
+            if let Some(cursor) = stream.get("cursor") {
+                cursor.as_str().map(|cursor| cursor.to_owned())
+            } else {
+                None
+            }
         } else {
             None
-        }
+        };
+        Some(out)
     }
 }
 
