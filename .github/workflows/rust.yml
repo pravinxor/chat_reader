@@ -18,6 +18,16 @@ jobs:
     - uses: actions/checkout@v3
     - name: Build
       run: cargo build --release
+    - name: Copy Artifacts
+      working-directory: ${{runner.workspace}}/target/release
+      run: mkdir artifacts
+           cp chat_reader artifacts/
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v1
+      with:
+        name: WinOutput
+        path: ${{runner.workspace}}/target/release/artifacts
+      
   
   macbuild:
     runs-on: macos-latest
@@ -26,3 +36,12 @@ jobs:
     - uses: actions/checkout@v3
     - name: Build
       run: cargo build --release
+    - name: Copy Artifacts
+      working-directory: ${{runner.workspace}}/target/release
+      run: mkdir artifacts
+           cp chat_reader artifacts/
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v1
+      with:
+        name: MacOutput
+        path: ${{runner.workspace}}/target/release/artifacts
