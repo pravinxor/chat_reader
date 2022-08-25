@@ -17,7 +17,7 @@ jobs:
     - uses: actions/upload-artifact@v3
       with:
         name: chat_reader_windows
-        path: target/release/chat_reader
+        path: target/release/chat_reader.exe
       
   
   macbuild:
