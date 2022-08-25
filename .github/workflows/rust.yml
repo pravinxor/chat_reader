@@ -31,3 +31,15 @@ jobs:
       with:
         name: chat_reader_osx
         path: target/release/chat_reader
+        
+  linuxbuild:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    - name: Build
+      run: cargo build --release
+    - uses: actions/upload-artifact@v3
+      with:
+        name: chat_reader_gnu
+        path: target/release/chat_reader
