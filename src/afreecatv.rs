@@ -100,6 +100,7 @@ impl Vod {
     pub fn new(title_no: u32) -> Result<Self, Box<dyn std::error::Error>> {
         let response = crate::common::CLIENT
             .get(format!("https://vod.afreecatv.com/player/{}", title_no))
+            .header(reqwest::header::COOKIE, DUMMY_COOKIE)
             .send()?
             .text()?;
         let title_no = TITLE_NO_MATCHER
