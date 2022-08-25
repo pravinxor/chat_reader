@@ -3,7 +3,7 @@ use rayon::prelude::*;
 const CLIENT_ID: &str = "kimne78kx3ncx6brgo4mv6wki5h1ko";
 const GQL: &str = "https://gql.twitch.tv/gql";
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Eq)]
 pub enum Recency {
     AllTime,
     LastMonth,
