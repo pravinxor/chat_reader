@@ -58,7 +58,7 @@ enum Twitch {
         id: u32,
     },
     Channel {
-        username: String,
+        channel: crate::twitch::Channel,
 
         #[clap(flatten)]
         opts: TwitchChannelOpts,
@@ -163,9 +163,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .for_each(|comment| println!("{}", comment));
             }
 
-            Twitch::Channel { username, opts } => {
-                handle_twitch_channel(crate::twitch::Channel::new(username), &opts, &filter)?
-            }
+            Twitch::Channel { channel, opts } => handle_twitch_channel(channel, &opts, &filter)?,
 
             Twitch::Directory {
                 name,

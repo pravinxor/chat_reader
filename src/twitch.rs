@@ -308,6 +308,18 @@ pub struct Channel {
     pub username: String,
 }
 
+impl std::str::FromStr for Channel {
+    type Err = &'static str;
+    fn from_str(name: &str) -> Result<Self, Self::Err> {
+        let channel = Channel::new(name);
+        if channel.exists() {
+            Ok(channel)
+        } else {
+            Err("This channel does not exist")
+        }
+    }
+}
+
 impl Channel {
     pub fn new<S>(username: S) -> Self
     where
@@ -323,6 +335,41 @@ impl Channel {
             username: &self.username,
             cursor: Some(String::from("")),
         }
+    }
+
+    fn exists(&self) -> bool {
+        let req_json = serde_json::json!({
+            "operationName": "PlaybackAccessToken",
+            "variables": {
+                "isLive": true,
+                "login": self.username,
+                "isVod": false,
+                "vodID": "",
+                "playerType": "channel_home_carousel"
+            },
+            "extensions": {
+                "persistedQuery": {
+                    "version": 1,
+                    "sha256Hash": "0828119ded1c13477966434e15800ff57ddacf13ba1911c129dc2200705b0712"
+                }
+            }
+        });
+        let response: serde_json::Value = crate::common::CLIENT
+            .post(GQL)
+            .header("X-Device-Id", "1UTTXkkDGQnD17zO8HvZ2mFiFONpG1ft")
+            .header("Client-Id", CLIENT_ID)
+            .json(&req_json)
+            .send()
+            .unwrap()
+            .json()
+            .unwrap();
+
+        return !response
+            .get("data")
+            .unwrap()
+            .get("streamPlaybackAccessToken")
+            .unwrap()
+            .is_null();
     }
 
     pub fn videos(&self) -> Result<Vec<Vod>, Box<dyn std::error::Error>> {
