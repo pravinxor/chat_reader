@@ -3,6 +3,16 @@ use rayon::prelude::*;
 const CLIENT_ID: &str = "kimne78kx3ncx6brgo4mv6wki5h1ko";
 const GQL: &str = "https://gql.twitch.tv/gql";
 
+fn gql(json: &serde_json::Value) -> reqwest::Result<serde_json::Value> {
+    crate::common::CLIENT
+        .post(GQL)
+        .header("Client-Id", CLIENT_ID)
+        .header("X-Device-Id", "1UTTXkkDGQnD17zO8HvZ2mFiFONpG1ft")
+        .json(json)
+        .send()?
+        .json()
+}
+
 #[derive(PartialEq, Eq)]
 pub enum Recency {
     AllTime,
@@ -102,15 +112,7 @@ impl Iterator for DirectoryClipIterator<'_> {
 
         let edges;
         loop {
-            let response: serde_json::Value = crate::common::CLIENT
-                .post(GQL)
-                .header("Client-Id", CLIENT_ID)
-                .header("X-Device-Id", "1UTTXkkDGQnD17zO8HvZ2mFiFONpG1ft")
-                .json(&req_json)
-                .send()
-                .unwrap()
-                .json()
-                .unwrap();
+            let response: serde_json::Value = gql(&req_json).unwrap();
 
             let clips = response.get(0)?.get("data")?.get("game")?.get("clips")?;
             if clips.is_null() {
@@ -184,15 +186,7 @@ impl Iterator for DirectoryIterator<'_> {
                 }
             }
         }]);
-        let response: serde_json::Value = crate::common::CLIENT
-            .post(GQL)
-            .header("Client-Id", CLIENT_ID)
-            .header("X-Device-Id", "1UTTXkkDGQnD17zO8HvZ2mFiFONpG1ft")
-            .json(&req_json)
-            .send()
-            .unwrap()
-            .json()
-            .unwrap();
+        let response: serde_json::Value = gql(&req_json).unwrap();
 
         let channels = response
             .get(0)?
@@ -268,15 +262,7 @@ impl Iterator for TagIterator {
                 }
             }
         }]);
-        let request: serde_json::Value = crate::common::CLIENT
-            .post(GQL)
-            .header("Client-Id", CLIENT_ID)
-            .header("X-Device-Id", "1UTTXkkDGQnD17zO8HvZ2mFiFONpG1ft")
-            .json(&req_json)
-            .send()
-            .unwrap()
-            .json()
-            .unwrap();
+        let request: serde_json::Value = gql(&req_json).unwrap();
         let streamlist = request
             .get(0)?
             .get("data")?
@@ -354,15 +340,7 @@ impl Channel {
                 }
             }
         });
-        let response: serde_json::Value = crate::common::CLIENT
-            .post(GQL)
-            .header("X-Device-Id", "1UTTXkkDGQnD17zO8HvZ2mFiFONpG1ft")
-            .header("Client-Id", CLIENT_ID)
-            .json(&req_json)
-            .send()
-            .unwrap()
-            .json()
-            .unwrap();
+        let response: serde_json::Value = gql(&req_json).unwrap();
 
         return !response
             .get("data")
@@ -392,12 +370,7 @@ impl Channel {
                                          }
         ]);
 
-        let response: serde_json::Value = crate::common::CLIENT
-            .post(GQL)
-            .header("Client-Id", CLIENT_ID)
-            .json(&req_json)
-            .send()?
-            .json()?;
+        let response: serde_json::Value = gql(&req_json).unwrap();
         let vod_json = response
             .get(0)
             .ok_or("Missing idx 0")?
@@ -454,12 +427,7 @@ pub mod clips {
                                          }
             ]);
 
-            let response: serde_json::Value = crate::common::CLIENT
-                .post(super::GQL)
-                .header("Client-Id", super::CLIENT_ID)
-                .json(&req_json)
-                .send()?
-                .json()?;
+            let response: serde_json::Value = super::gql(&req_json).unwrap();
             let clips = response
                 .get(0)
                 .ok_or("Missing idx 0")?
@@ -554,13 +522,8 @@ impl Vod {
                                          }
         ]);
 
-        let reponse = crate::common::CLIENT
-            .post(GQL)
-            .header("Client-Id", CLIENT_ID)
-            .json(&req_json)
-            .send()?;
-        let metadata_json: serde_json::Value = reponse.json()?;
-        let vod_type = metadata_json
+        let response = gql(&req_json)?;
+        let vod_type = response
             .get(0)
             .ok_or("Missing idx 0")?
             .get("data")
