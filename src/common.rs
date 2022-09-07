@@ -80,7 +80,7 @@ where
     V: Vod + Sync,
 {
     let pool = rayon::ThreadPoolBuilder::new()
-        .num_threads(100)
+        .num_threads(std::cmp::min(vods.len(), 100))
         .build()
         .unwrap();
     pool.scope(|t| {
