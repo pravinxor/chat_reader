@@ -135,6 +135,7 @@ fn handle_twitch_channel(
             .flatten()
             .filter(|c| filter.is_match(c.user.as_ref().unwrap()) || filter.is_match(&c.body))
             .for_each(|c| println!("{}", c));
+        println!();
     }
     if opts.vods {
         let videos = channel.videos()?;
