@@ -565,45 +565,82 @@ mod chat {
     use colored::Colorize;
 
     pub struct ChatIterator {
-        pub id: u32,
+        pub id: String,
         cursor: Option<String>,
     }
 
     impl ChatIterator {
         pub fn new(id: u32) -> Self {
             Self {
-                id,
+                id: id.to_string(),
                 cursor: Some(String::from("")),
             }
         }
 
         fn get_next(&mut self) -> Result<Vec<crate::common::Message>, Box<dyn std::error::Error>> {
-            let request = crate::common::AGENT
-                .get(&format!(
-                    "https://api.twitch.tv/v5/videos/{}/comments?cursor={}",
-                    self.id,
-                    self.cursor.as_ref().ok_or("Cursor is None")?
-                ))
-                .set("Client-Id", crate::twitch::CLIENT_ID)
-                .call()?;
-            let comment_json: serde_json::Value = request.into_json()?;
+            let req_json = serde_json::json!([{
+                "operationName": "VideoCommentsByOffsetOrCursor",
+                "variables": {
+                    "videoID": self.id,
+                    "cursor": self.cursor.as_ref().ok_or("No cursor")?
+                },
+                "extensions": {
+                    "persistedQuery": {
+                        "version":1,
+                        "sha256Hash": "b70a3591ff0f4e0313d126c6a1502d79a1c02baebb288227c582044aa76adf6a"
+                    }
+                }
+            }]);
+            let comment_json = super::gql(&req_json)?;
             let comments = comment_json
+                .get(0)
+                .ok_or("Missing idx 0")?
+                .get("data")
+                .ok_or("Missing data")?
+                .get("video")
+                .ok_or("Missing video")?
                 .get("comments")
-                .ok_or("Missing comments; This video ID may not exist")?
+                .ok_or("Missing comments; This video ID may not exist")?;
+            let edges = comments
+                .get("edges")
+                .ok_or("Missing edges")?
                 .as_array()
                 .ok_or("Unable to convert comments -> array")?;
 
-            let messages = comments
+            if comments
+                .get("pageInfo")
+                .ok_or("Missing pageInfo")?
+                .get("hasNextPage")
+                .ok_or("Missing hasNextPage")?
+                .as_bool()
+                .ok_or("Could not convert hasNextPage -> bool")?
+            {
+                self.cursor = edges.last().and_then(|c| {
+                    c.get("cursor")
+                        .and_then(|c| c.as_str().map(|s| s.to_owned()))
+                });
+            } else {
+                self.cursor = None;
+            }
+
+            Ok(edges
                 .iter()
+                .flat_map(|e| e.get("node"))
                 .filter_map(|comment| -> Option<crate::common::Message> {
                     let mut user: Option<String> =
-                        Some(comment.get("commenter")?.get("name")?.as_str()?.into());
+                        Some(comment.get("commenter")?.get("login")?.as_str()?.to_owned());
                     let message = comment.get("message")?;
-                    let body = message.get("body")?.as_str()?.into();
-                    let colorcode = message.get("user_color");
+                    let body = message
+                        .get("fragments")?
+                        .get(0)?
+                        .get("text")?
+                        .as_str()?
+                        .to_owned();
+
+                    let colorcode = message.get("userColor")?.as_str();
                     let color = match colorcode {
                         Some(code) => {
-                            let code = code.as_str()?.trim_start_matches('#');
+                            let code = code.trim_start_matches('#');
                             Some(colored::Color::TrueColor {
                                 r: u8::from_str_radix(&code[0..2], 16).unwrap(),
                                 g: u8::from_str_radix(&code[2..4], 16).unwrap(),
@@ -612,10 +649,11 @@ mod chat {
                         }
                         None => None,
                     };
+
                     if let Some(color) = color {
                         user = Some(user.unwrap().color(color).to_string());
                     }
-                    let timestamp = comment.get("content_offset_seconds")?.as_f64()?;
+                    let timestamp = comment.get("contentOffsetSeconds")?.as_f64()?;
 
                     Some(crate::common::Message {
                         user,
@@ -623,12 +661,7 @@ mod chat {
                         timestamp: Some(timestamp),
                     })
                 })
-                .collect();
-            match comment_json.get("_next") {
-                Some(next) => self.cursor = Some(next.as_str().unwrap().into()),
-                None => self.cursor = None,
-            }
-            Ok(messages)
+                .collect())
         }
     }
     impl crate::common::ChatIterator for ChatIterator {}
