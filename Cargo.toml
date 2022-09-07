@@ -9,7 +9,6 @@ edition = "2021"
 serde_json = "1.0"
 roxmltree = "0.14.1"
 rayon = "1.5.3"
-reqwest = { version = "0.11", features = ["json", "blocking"] }
 ureq = { version = "2.5.0", features = ["json"] }
 lazy_static = "1.4.0"
 hhmmss = "0.1.0"

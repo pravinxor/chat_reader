@@ -578,15 +578,15 @@ mod chat {
         }
 
         fn get_next(&mut self) -> Result<Vec<crate::common::Message>, Box<dyn std::error::Error>> {
-            let request = crate::common::CLIENT
-                .get(format!(
+            let request = crate::common::AGENT
+                .get(&format!(
                     "https://api.twitch.tv/v5/videos/{}/comments?cursor={}",
                     self.id,
                     self.cursor.as_ref().ok_or("Cursor is None")?
                 ))
-                .header("Client-Id", crate::twitch::CLIENT_ID)
-                .send()?;
-            let comment_json: serde_json::Value = request.json()?;
+                .set("Client-Id", crate::twitch::CLIENT_ID)
+                .call()?;
+            let comment_json: serde_json::Value = request.into_json()?;
             let comments = comment_json
                 .get("comments")
                 .ok_or("Missing comments; This video ID may not exist")?

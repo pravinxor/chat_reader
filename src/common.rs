@@ -1,5 +1,4 @@
 lazy_static::lazy_static! {
-    pub static ref CLIENT: reqwest::blocking::Client = reqwest::blocking::Client::new();
     pub static ref AGENT: ureq::Agent = ureq::AgentBuilder::new().build();
 }
 
