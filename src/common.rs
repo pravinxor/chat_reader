@@ -30,50 +30,7 @@ pub trait Vod: std::fmt::Display {
     fn comments(&self) -> Box<dyn ChatIterator>;
 }
 
-pub trait ChatIterator: Send + Iterator<Item = Vec<Message>> {
-    /// Will walk the ChatIterator and save the output into a buffer.
-    /// When display_sig recieves a signal, the buffer will be flushed into stdout
-    fn display_worker(
-        &mut self,
-        ready_sig: std::sync::mpsc::Sender<bool>,
-        finish_sig: std::sync::mpsc::Sender<()>,
-        display_sig: std::sync::mpsc::Receiver<()>,
-        filter: &regex::Regex,
-        showall: bool,
-    ) {
-        let mut display_now = false;
-        let mut has_messages = false;
-        let mut buf = Vec::new();
-        for message in self.flatten().filter(|message| {
-            filter.is_match(&message.body)
-                || match message.user.as_ref() {
-                    Some(message) => filter.is_match(message),
-                    None => false,
-                }
-        }) {
-            if !showall && !has_messages {
-                ready_sig.send(true).unwrap();
-                has_messages = true;
-            }
-
-            buf.push(message);
-            if display_now {
-                buf.iter().for_each(|m| println!("{}", m));
-                buf.clear();
-            } else if display_sig.try_recv().is_ok() {
-                display_now = true;
-            }
-        }
-        if !showall && !has_messages {
-            ready_sig.send(false).unwrap();
-        }
-        if !display_now {
-            display_sig.recv().unwrap();
-            buf.iter().for_each(|m| println!("{}", m));
-        }
-        finish_sig.send(()).unwrap();
-    }
-}
+pub trait ChatIterator: Send + Iterator<Item = Vec<Message>> {}
 
 pub fn print_iter<V>(vods: &[V], filter: &regex::Regex, showall: bool)
 where
@@ -83,30 +40,29 @@ where
         .num_threads(std::cmp::min(vods.len(), 100))
         .build()
         .unwrap();
-    pool.scope(|t| {
-        let mut future_manager = Vec::with_capacity(vods.len());
+    let sequence = oqueue::Sequencer::stdout();
 
+    pool.scope_fifo(|t| {
         for vod in vods {
-            let mut comments = vod.comments();
-            let (tx, rx) = std::sync::mpsc::channel();
-            let (ftx, frx) = std::sync::mpsc::channel();
-            let (rtx, rrx) = std::sync::mpsc::channel();
-            t.spawn(move |_| comments.display_worker(rtx, ftx, rx, filter, showall));
-
-            future_manager.push((vod, rrx, frx, tx));
-        }
-
-        for (vod, rrx, frx, tx) in future_manager {
-            let res = if !showall { rrx.recv().unwrap() } else { true };
-
-            if res {
-                println!("{}", vod);
-            }
-            tx.send(()).unwrap();
-            frx.recv().unwrap();
-            if res {
-                println!();
-            }
+            t.spawn_fifo(|_| {
+                let comments = vod.comments().flatten();
+                let mut task = sequence.begin();
+                if !showall {
+                    task.hold();
+                }
+                writeln!(task, "{}", vod.to_string());
+                for comment in comments.filter(|message| {
+                    filter.is_match(&message.body)
+                        || match message.user.as_ref() {
+                            Some(message) => filter.is_match(message),
+                            None => false,
+                        }
+                }) {
+                    task.release();
+                    writeln!(task, "{}", comment);
+                }
+                writeln!(task);
+            });
         }
     });
 }
