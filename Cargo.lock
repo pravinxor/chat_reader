@@ -725,7 +725,7 @@ dependencies = [
 [[package]]
 name = "oqueue"
 version = "0.1.4"
-source = "git+https://github.com/pravinxor/oqueue#f4698c68f966b6c354960098bd78e2543f4e7d08"
+source = "git+https://github.com/pravinxor/oqueue#edf56bf4420c5f525bd98c958e6df619afa919fa"
 dependencies = [
  "readonly",
  "termcolor",
