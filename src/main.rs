@@ -199,7 +199,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
 
                 for channel in directory.channels().flatten() {
-                    writeln!(sequence.begin(), "Working on {}", channel.username.bold());
+                    println!("Working on {}", channel.username.bold());
                     handle_twitch_channel(channel, &opts, &filter, &sequence);
                 }
             }
