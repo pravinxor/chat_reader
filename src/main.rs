@@ -152,10 +152,8 @@ fn handle_twitch_channel(
         }
 
         if opts.recover {
-            t.spawn(|_| {
-                let channel = crate::twitchrecover::Channel::new(&channel.username).unwrap();
-                channel.videos().unwrap();
-            });
+            let channel = crate::twitchrecover::Channel::new(&channel.username).unwrap();
+            channel.videos().unwrap();
         }
     });
 }
