@@ -32,17 +32,11 @@ pub trait Vod: std::fmt::Display {
 
 pub trait ChatIterator: Send + Iterator<Item = Vec<Message>> {}
 
-pub fn print_iter<V>(vods: &[V], filter: &regex::Regex, showall: bool)
+pub fn print_iter<V>(vods: &[V], filter: &regex::Regex, showall: bool, sequence: &oqueue::Sequencer)
 where
     V: Vod + Sync,
 {
-    let pool = rayon::ThreadPoolBuilder::new()
-        .num_threads(std::cmp::min(vods.len(), 100))
-        .build()
-        .unwrap();
-    let sequence = oqueue::Sequencer::stdout();
-
-    pool.scope_fifo(|t| {
+    rayon::scope_fifo(|t| {
         for vod in vods {
             t.spawn_fifo(|_| {
                 let comments = vod.comments().flatten();

@@ -128,29 +128,44 @@ fn handle_twitch_channel(
     channel: crate::twitch::Channel,
     opts: &TwitchChannelOpts,
     filter: &regex::Regex,
-) -> Result<(), Box<dyn std::error::Error>> {
-    if opts.clips {
-        channel
-            .clips()
-            .flatten()
-            .filter(|c| filter.is_match(c.user.as_ref().unwrap()) || filter.is_match(&c.body))
-            .for_each(|c| println!("{}", c));
-        println!();
-    }
-    if opts.vods {
-        let videos = channel.videos()?;
-        crate::common::print_iter(&videos, filter, opts.showall);
-    }
-    if opts.recover {
-        let channel = crate::twitchrecover::Channel::new(&channel.username).unwrap();
-        channel.videos()?;
-    }
-    Ok(())
+    sequence: &oqueue::Sequencer,
+) {
+    rayon::scope(|t| {
+        if opts.clips {
+            t.spawn(|_| {
+                let task = sequence.begin();
+                channel
+                    .clips()
+                    .flatten()
+                    .filter(|c| {
+                        filter.is_match(c.user.as_ref().unwrap()) || filter.is_match(&c.body)
+                    })
+                    .for_each(|c| writeln!(&task, "{}", c))
+            });
+        }
+
+        if opts.vods {
+            t.spawn(|_| {
+                let videos = channel.videos().unwrap();
+                crate::common::print_iter(&videos, filter, opts.showall, sequence);
+            });
+        }
+
+        if opts.recover {
+            t.spawn(|_| {
+                let channel = crate::twitchrecover::Channel::new(&channel.username).unwrap();
+                channel.videos().unwrap();
+            });
+        }
+    });
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
     let filter = args.filter;
+
+    rayon::ThreadPoolBuilder::build_global(rayon::ThreadPoolBuilder::new().num_threads(100))?;
+    let sequence = oqueue::Sequencer::stdout();
 
     match args.mode {
         Mode::Twitch { twitch } => match twitch {
@@ -164,7 +179,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .for_each(|comment| println!("{}", comment));
             }
 
-            Twitch::Channel { channel, opts } => handle_twitch_channel(channel, &opts, &filter)?,
+            Twitch::Channel { channel, opts } => {
+                handle_twitch_channel(channel, &opts, &filter, &oqueue::Sequencer::stdout());
+            }
 
             Twitch::Directory {
                 name,
@@ -184,15 +201,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
 
                 for channel in directory.channels().flatten() {
-                    println!("Working on {}", channel.username.bold());
-                    handle_twitch_channel(channel, &opts, &filter)?
+                    writeln!(sequence.begin(), "Working on {}", channel.username.bold());
+                    handle_twitch_channel(channel, &opts, &filter, &sequence);
                 }
             }
 
             Twitch::Tags { tags, opts } => {
                 for channel in crate::twitch::Tag::channels(&tags).flatten() {
                     println!("Working on {}", channel.username.bold());
-                    handle_twitch_channel(channel, &opts, &filter)?
+                    handle_twitch_channel(channel, &opts, &filter, &sequence);
                 }
             }
         },
@@ -211,7 +228,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Afreecatv::Blog { username, showall } => {
                 let channel = crate::afreecatv::Channel::new(username);
                 let videos = channel.videos()?;
-                crate::common::print_iter(&videos, &filter, showall);
+                crate::common::print_iter(&videos, &filter, showall, &oqueue::Sequencer::stdout());
             }
         },
 
