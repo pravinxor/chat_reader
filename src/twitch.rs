@@ -3,21 +3,14 @@ use rayon::prelude::*;
 const CLIENT_ID: &str = "kimne78kx3ncx6brgo4mv6wki5h1ko";
 const GQL: &str = "https://gql.twitch.tv/gql";
 
-fn gql(json: &serde_json::Value) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
-    /*crate::common::CLIENT
+fn gql(json: &serde_json::Value) -> Result<serde_json::Value, reqwest::Error> {
+    crate::common::CLIENT
         .post(GQL)
         .header("Client-Id", CLIENT_ID)
         .header("X-Device-Id", "1UTTXkkDGQnD17zO8HvZ2mFiFONpG1ft")
         .json(json)
         .send()?
-        .json();
-    */
-    Ok(crate::common::AGENT
-        .post(GQL)
-        .set("Client-Id", CLIENT_ID)
-        .set("X-Device-Id", "1UTTXkkDGQnD17zO8HvZ2mFiFONpG1ft")
-        .send_json(json)?
-        .into_json()?)
+        .json()
 }
 
 #[derive(PartialEq, Eq)]

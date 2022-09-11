@@ -162,7 +162,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
     let filter = args.filter;
 
-    rayon::ThreadPoolBuilder::build_global(rayon::ThreadPoolBuilder::new().num_threads(100))?;
+    rayon::ThreadPoolBuilder::build_global(rayon::ThreadPoolBuilder::new().num_threads(32))?;
     let sequence = oqueue::Sequencer::stdout();
 
     match args.mode {

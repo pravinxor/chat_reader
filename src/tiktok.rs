@@ -35,17 +35,18 @@ pub struct CaptionIterator {
 impl Iterator for CaptionIterator {
     type Item = Vec<crate::common::Message>;
     fn next(&mut self) -> Option<Self::Item> {
-        let response = crate::common::AGENT
+        let response = crate::common::CLIENT
             .get(&format!("https://www.tiktok.com/@tiktok/video/{}", self.id))
-            .set("User-Agent", crate::common::USER_AGENT)
-            .call()
+            .header(reqwest::header::USER_AGENT, crate::common::USER_AGENT)
+            .send()
             .unwrap()
-            .into_string()
+            .text()
             .unwrap();
-        println!("{}", &response);
+        let response = response.as_str();
+        println!("{}", response);
 
         let transcript_key = TRANSCRIPT_MATCHER
-            .find(&response)?
+            .find(response)?
             .as_str()
             .replace(r#"\u002F"#, "/");
         let transcript_key = transcript_key[16..].trim_end_matches('"');
@@ -58,16 +59,16 @@ impl Iterator for ChatIterator {
     type Item = Vec<crate::common::Message>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let response: serde_json::Value = crate::common::AGENT
+        let response: serde_json::Value = crate::common::CLIENT
             .get(&format!(
                 "https://us.tiktok.com/api/comment/list/?aweme_id={}&count=50&cursor={}",
                 self.id, self.cursor
             ))
-            .set("Referer", "https://www.tiktok.com/")
-            .set("User-Agent", crate::common::USER_AGENT)
-            .call()
+            .header(reqwest::header::REFERER, "https://www.tiktok.com/")
+            .header(reqwest::header::USER_AGENT, crate::common::USER_AGENT)
+            .send()
             .unwrap()
-            .into_json()
+            .json()
             .unwrap();
         self.cursor += 50;
         Some(

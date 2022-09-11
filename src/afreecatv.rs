@@ -13,13 +13,13 @@ impl Channel {
     }
 
     fn get_page(&self, num: u64) -> Result<Vec<Vod>, Box<dyn std::error::Error>> {
-        let vods_json: serde_json::Value = crate::common::AGENT
-            .get(&format!(
+        let vods_json: serde_json::Value = crate::common::CLIENT
+            .get(format!(
                 "https://bjapi.afreecatv.com/api/{}/vods/all?per_page=60&page={}",
                 self.name, num
             ))
-            .call()?
-            .into_json()?;
+            .send()?
+            .json()?;
         let data = vods_json
             .get("data")
             .ok_or("Missing data")?
@@ -45,13 +45,13 @@ impl Channel {
     }
 
     pub fn videos(&self) -> Result<Vec<Vod>, Box<dyn std::error::Error>> {
-        let info_json: serde_json::Value = crate::common::AGENT
-            .get(&format!(
+        let info_json: serde_json::Value = crate::common::CLIENT
+            .get(format!(
                 "https://bjapi.afreecatv.com/api/{}/vods/all?per_page=60",
                 self.name
             ))
-            .call()?
-            .into_json()?;
+            .send()?
+            .json()?;
         let last_page = info_json
             .get("meta")
             .ok_or("Missing meta")?
@@ -98,25 +98,26 @@ impl std::fmt::Display for Vod {
 
 impl Vod {
     pub fn new(title_no: u32) -> Result<Self, Box<dyn std::error::Error>> {
-        let response = crate::common::AGENT
-            .get(&format!("https://vod.afreecatv.com/player/{}", title_no))
-            .set("Cookie", DUMMY_COOKIE)
-            .call()?
-            .into_string()?;
+        let response = crate::common::CLIENT
+            .get(format!("https://vod.afreecatv.com/player/{}", title_no))
+            .header(reqwest::header::COOKIE, DUMMY_COOKIE)
+            .send()?
+            .text()?;
+        let response = response.as_str();
         let title_no = TITLE_NO_MATCHER
-            .find(&response)
+            .find(response)
             .ok_or("nTitleNo missing")?
             .as_str()
             .trim_end_matches(';')[20..]
             .parse()?;
         let station_no = STATION_NO_MATCHER
-            .find(&response)
+            .find(response)
             .ok_or("nStationNo missing")?
             .as_str()
             .trim_end_matches(';')[22..]
             .parse()?;
         let bbs_no = BBS_NO_MATCHER
-            .find(&response)
+            .find(response)
             .ok_or("nBbsNo missing")?
             .as_str()
             .trim_end_matches(';')[18..]
@@ -137,15 +138,16 @@ impl Vod {
 
 impl crate::common::Vod for Vod {
     fn comments(&self) -> Box<dyn crate::common::ChatIterator> {
-        let xml = crate::common::AGENT
+        let xml = crate::common::CLIENT
             .get(&self.info_url())
-            .set("Cookie", DUMMY_COOKIE)
-            .call()
+            .header(reqwest::header::COOKIE, DUMMY_COOKIE)
+            .send()
             .unwrap()
-            .into_string()
+            .text()
             .unwrap();
-        let key_iter = KEY_MATCHER.find_iter(&xml);
-        let duration_iter = DURATION_MATCHER.find_iter(&xml);
+        let xml = xml.as_str();
+        let key_iter = KEY_MATCHER.find_iter(xml);
+        let duration_iter = DURATION_MATCHER.find_iter(xml);
         let rows = key_iter
             .zip(duration_iter)
             .map(|n| {
@@ -182,11 +184,9 @@ impl ChatIterator {
             "https://videoimg.afreecatv.com/php/ChatLoadSplit.php?rowKey={}_c&startTime={}",
             key, start_time
         );
-        let xml_text = crate::common::AGENT
-            .get(&transcript_url)
-            .call()?
-            .into_string()?;
-        let roxml = roxmltree::Document::parse(&xml_text)?;
+        let xml_text = crate::common::CLIENT.get(transcript_url).send()?.text()?;
+        let xml_text = xml_text.as_str();
+        let roxml = roxmltree::Document::parse(xml_text)?;
         let chat = roxml
             .root()
             .descendants()

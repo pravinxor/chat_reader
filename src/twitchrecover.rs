@@ -26,14 +26,14 @@ pub struct Video {
 
 impl Channel {
     pub fn new(name: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        let json: serde_json::Value = crate::common::AGENT
-            .get(&format!(
+        let json: serde_json::Value = crate::common::CLIENT
+            .get(format!(
                 "https://sullygnome.com/api/standardsearch/{}",
                 name
             ))
-            .set("User-Agent", crate::common::USER_AGENT)
-            .call()?
-            .into_json()?;
+            .header(reqwest::header::USER_AGENT, crate::common::USER_AGENT)
+            .send()?
+            .json()?;
 
         let top_value = json
             .get(0)
@@ -51,14 +51,14 @@ impl Channel {
     }
 
     pub fn videos(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let json: serde_json::Value = crate::common::AGENT
+        let json: serde_json::Value = crate::common::CLIENT
             .get(&format!(
                 "https://sullygnome.com/api/tables/channeltables/streams/365/{}/%20/1/1/desc/0/100",
                 self.value
             ))
-            .set("User-Agent", crate::common::USER_AGENT)
-            .call()?
-            .into_json()?;
+            .header(reqwest::header::USER_AGENT, crate::common::USER_AGENT)
+            .send()?
+            .json()?;
         let data = json
             .get("data")
             .ok_or("Missing data")?
@@ -97,9 +97,9 @@ impl Video {
                     "https://{}.cloudfront.net/{}/chunked/index-dvr.m3u8",
                     domain, &subdirectory
                 );
-                let request = crate::common::AGENT.get(&link).call();
+                let request = crate::common::CLIENT.get(&link).send();
                 if let Ok(message) = request {
-                    if message.status() == 200 {
+                    if message.status().is_success() {
                         Some(link)
                     } else {
                         None
