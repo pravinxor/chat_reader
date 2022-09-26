@@ -65,15 +65,24 @@ impl Channel {
             .as_array()
             .ok_or("Could not convert data -> array")?;
 
-        data.par_iter()
-            .flat_map(|video| -> Option<Video> {
-                let stream_id = video.get("streamId")?.as_u64()?;
-                let start_timestamp = video.get("startDateTime")?.as_str()?;
-                let unix_timestamp = Self::unix_time(start_timestamp).unwrap();
-                let channel_name = video.get("channelurl")?.as_str()?;
-                Video::new(stream_id, unix_timestamp, channel_name)
-            })
-            .for_each(|v| println!("{}\n", v));
+        let sequencer = oqueue::Sequencer::stdout();
+        rayon::scope_fifo(|t| {
+            for video in data {
+                t.spawn_fifo(|_| {
+                    let task = sequencer.begin();
+                    let rvideo = |video: &serde_json::Value| -> Option<Video> {
+                        let stream_id = video.get("streamId")?.as_u64()?;
+                        let start_timestamp = video.get("startDateTime")?.as_str()?;
+                        let unix_timestamp = Self::unix_time(start_timestamp).unwrap();
+                        let channel_name = video.get("channelurl")?.as_str()?;
+                        Video::new(stream_id, unix_timestamp, channel_name)
+                    };
+                    if let Some(video) = rvideo(video) {
+                        writeln!(task, "{}\n", video);
+                    }
+                });
+            }
+        });
         Ok(())
     }
 }
