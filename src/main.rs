@@ -13,6 +13,9 @@ mod twitchrecover;
 #[path = "tiktok.rs"]
 mod tiktok;
 
+#[path = "whisper.rs"]
+mod whisper;
+
 use crate::common::Vod;
 use clap::{Parser, Subcommand};
 use colored::Colorize;
@@ -137,9 +140,7 @@ fn handle_twitch_channel(
                 channel
                     .clips()
                     .flatten()
-                    .filter(|c| {
-                        filter.is_match(c.user.as_ref().unwrap()) || filter.is_match(&c.body)
-                    })
+                    .filter(|c| filter.is_match(&c.username) || filter.is_match(&c.title))
                     .for_each(|c| writeln!(&task, "{}", c))
             });
         }
@@ -192,9 +193,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     directory
                         .clips(recency)
                         .flatten()
-                        .filter(|c| {
-                            filter.is_match(c.user.as_ref().unwrap()) || filter.is_match(&c.body)
-                        })
+                        .filter(|c| filter.is_match(&c.username) || filter.is_match(&c.title))
                         .for_each(|c| println!("{}", c));
                 }
 
