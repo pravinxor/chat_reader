@@ -46,6 +46,10 @@ struct TwitchChannelOpts {
     #[clap(short, long, parse(from_flag))]
     recover: bool,
 
+    /// Use video transcription as matching sort (Currently only supports clips)
+    #[clap(short, long, parse(from_flag))]
+    transcribe: bool,
+
     #[clap(short, long, parse(from_flag))]
     showall: bool,
 }
@@ -137,11 +141,18 @@ fn handle_twitch_channel(
         if opts.clips {
             t.spawn(|_| {
                 let task = sequence.begin();
-                channel
-                    .clips()
-                    .flatten()
-                    .filter(|c| filter.is_match(&c.username) || filter.is_match(&c.title))
-                    .for_each(|c| writeln!(&task, "{}", c))
+                let clips = channel.clips().flatten();
+
+                if opts.transcribe {
+                    clips.for_each(|clip| {
+                        crate::whisper::process(&task, &clip, &clip.url, Some("English"), filter);
+                        println!();
+                    });
+                } else {
+                    clips
+                        .filter(|c| filter.is_match(&c.username) || filter.is_match(&c.title))
+                        .for_each(|c| writeln!(&task, "{}", c))
+                }
             });
         }
 
