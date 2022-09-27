@@ -141,10 +141,14 @@ impl Iterator for DirectoryClipIterator<'_> {
                         .as_str()?
                         .to_owned();
 
+                    let thumbnail_url = node.get("thumbnailURL")?.as_str()?;
+                    let url = format!("{}.mp4", &thumbnail_url[0..thumbnail_url.len() - 20]);
+
                     Some(self::clips::Clip {
                         username: user,
                         slug,
                         title,
+                        url,
                     })
                 })
                 .collect(),
@@ -411,6 +415,7 @@ pub mod clips {
         pub username: String,
         pub slug: String,
         pub title: String,
+        pub url: String,
     }
 
     impl std::fmt::Display for Clip {
@@ -421,25 +426,23 @@ pub mod clips {
 
     impl ClipIterator<'_> {
         fn get_next(&mut self) -> Result<Vec<Clip>, Box<dyn std::error::Error>> {
-            let req_json = serde_json::json!([
-                                             {
-                                                 "operationName": "ClipsCards__User",
-                                                 "variables": {
-                                                 "login": self.username,
-                                                 "limit": 100,
-                                                 "criteria": {
-                                                     "filter": super::Recency::AllTime.as_str()
-                                                 },
-                                                 "cursor": self.cursor,
-                                                 },
-                                                 "extensions": {
-                                                     "persistedQuery": {
-                                                     "version": 1,
-                                                     "sha256Hash": "b73ad2bfaecfd30a9e6c28fada15bd97032c83ec77a0440766a56fe0bd632777"
-                                                 }
-                                             }
-                                         }
-            ]);
+            let req_json = serde_json::json!([{
+                "operationName": "ClipsCards__User",
+                "variables": {
+                    "login": self.username,
+                    "limit": 100,
+                    "criteria": {
+                        "filter": super::Recency::AllTime.as_str()
+                    },
+                    "cursor": self.cursor,
+                },
+                "extensions": {
+                    "persistedQuery": {
+                        "version": 1,
+                        "sha256Hash": "b73ad2bfaecfd30a9e6c28fada15bd97032c83ec77a0440766a56fe0bd632777"
+                    }
+                }
+            }]);
 
             let response: serde_json::Value = super::gql(&req_json).unwrap();
             let clips = response
@@ -470,11 +473,14 @@ pub mod clips {
                         .to_owned();
                     let slug = node.get("slug")?.as_str()?.to_owned();
                     let title = node.get("title")?.as_str()?.to_owned();
+                    let thumbnail_url = node.get("thumbnailURL")?.as_str()?;
+                    let url = format!("{}.mp4", &thumbnail_url[0..thumbnail_url.len() - 20]);
 
                     Some(Clip {
                         username: user,
                         slug,
                         title,
+                        url,
                     })
                 })
                 .collect())
@@ -523,21 +529,19 @@ impl Vod {
             .find("storyboards")
             .ok_or("Could not find storboards")?;
         let domain_url = format!("{}chunked/", &preview_url[..chunked_index]);
-        let req_json = serde_json::json!([
-                                         {
-                                             "operationName": "VideoMetadata",
-                                             "variables": {
-                                                 "channelLogin": "",
-                                                 "videoID": format!(r#"{}"#, id),
-                                             },
-                                             "extensions": {
-                                                 "persistedQuery": {
-                                                     "version": 1,
-                                                     "sha256Hash": "226edb3e692509f727fd56821f5653c05740242c82b0388883e0c0e75dcbf687"
-                                                 }
-                                             }
-                                         }
-        ]);
+        let req_json = serde_json::json!([{
+            "operationName": "VideoMetadata",
+            "variables": {
+                "channelLogin": "",
+                "videoID": format!(r#"{}"#, id),
+            },
+            "extensions": {
+                "persistedQuery": {
+                    "version": 1,
+                    "sha256Hash": "226edb3e692509f727fd56821f5653c05740242c82b0388883e0c0e75dcbf687"
+                }
+            }
+        }]);
 
         let response = gql(&req_json)?;
         let vod_type = response
