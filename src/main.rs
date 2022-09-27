@@ -146,7 +146,6 @@ fn handle_twitch_channel(
                 if opts.transcribe {
                     clips.for_each(|clip| {
                         crate::whisper::process(&task, &clip, &clip.url, Some("English"), filter);
-                        println!();
                     });
                 } else {
                     clips
