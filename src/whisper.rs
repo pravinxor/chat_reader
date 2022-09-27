@@ -2,18 +2,21 @@ pub struct Whisper {}
 
 use std::io::prelude::*;
 impl Whisper {
-    pub fn generate_script(audioname: &str) -> String {
+    pub fn generate_script(audioname: &str, language: Option<&str>) -> String {
+        let language = match language {
+            Some(language) => format!("'{}'", language),
+            None => String::from("None"),
+        };
         format!(
-            "import whisper\nmodel = whisper.load_model('tiny.en')\naudio = whisper.load_audio('{}')\noptions = whisper.DecodingOptions(language='English')\nwhisper.transcribe(model, audio, verbose=True, language='English')",
-            audioname
+            "import whisper\nmodel = whisper.load_model('tiny')\naudio = whisper.load_audio('{}')\nwhisper.transcribe(model, audio, verbose=True, language={})",
+            audioname,
+            language
         )
     }
-    pub fn process(url: &str) {
-        let filter = regex::Regex::new("their").unwrap();
-        println!("starting Whisper");
+    pub fn process(url: &str, language: Option<&str>, filter: &regex::Regex) {
         let mut process = std::process::Command::new("python")
             .arg("-c")
-            .arg(Self::generate_script(url))
+            .arg(Self::generate_script(url, language))
             .stdout(std::process::Stdio::piped())
             .spawn()
             .unwrap();
@@ -24,6 +27,5 @@ impl Whisper {
             .filter_map(|line| line.ok())
             .filter(|line| filter.is_match(line))
             .for_each(|line| println!("{}", line));
-        println!("Finishing whisper");
     }
 }
