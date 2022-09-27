@@ -86,7 +86,7 @@ pub struct DirectoryClipIterator<'a> {
 }
 
 impl Iterator for DirectoryClipIterator<'_> {
-    type Item = Vec<crate::common::Message>;
+    type Item = Vec<self::clips::Clip>;
     fn next(&mut self) -> Option<Self::Item> {
         self.cursor.as_ref()?;
 
@@ -132,16 +132,19 @@ impl Iterator for DirectoryClipIterator<'_> {
             edges
                 .iter()
                 .flat_map(|edge| edge.get("node"))
-                .flat_map(|node| -> Option<crate::common::Message> {
-                    let title = node.get("title")?.as_str()?;
-                    let slug = node.get("slug")?.as_str()?;
-                    let user = node.get("broadcaster")?.get("displayName")?.as_str()?;
+                .flat_map(|node| -> Option<self::clips::Clip> {
+                    let title = node.get("title")?.as_str()?.to_owned();
+                    let slug = node.get("slug")?.as_str()?.to_owned();
+                    let user = node
+                        .get("broadcaster")?
+                        .get("displayName")?
+                        .as_str()?
+                        .to_owned();
 
-                    let body = format!("[{}] {}", title, slug);
-                    Some(crate::common::Message {
-                        body,
-                        timestamp: None,
-                        user: Some(user.to_owned()),
+                    Some(self::clips::Clip {
+                        username: user,
+                        slug,
+                        title,
                     })
                 })
                 .collect(),
@@ -404,9 +407,20 @@ pub mod clips {
         pub username: &'a str,
         pub cursor: Option<String>,
     }
+    pub struct Clip {
+        pub username: String,
+        pub slug: String,
+        pub title: String,
+    }
+
+    impl std::fmt::Display for Clip {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "[{}][{}] {}", self.username, self.title, self.slug)
+        }
+    }
 
     impl ClipIterator<'_> {
-        fn get_next(&mut self) -> Result<Vec<crate::common::Message>, Box<dyn std::error::Error>> {
+        fn get_next(&mut self) -> Result<Vec<Clip>, Box<dyn std::error::Error>> {
             let req_json = serde_json::json!([
                                              {
                                                  "operationName": "ClipsCards__User",
@@ -448,23 +462,26 @@ pub mod clips {
             Ok(clips
                 .iter()
                 .flat_map(|e| e.get("node"))
-                .flat_map(|node| -> Option<crate::common::Message> {
-                    let user = node.get("curator")?.get("displayName")?.as_str()?;
-                    let slug = node.get("slug")?.as_str()?;
-                    let title = node.get("title")?.as_str()?;
+                .flat_map(|node| -> Option<Clip> {
+                    let user = node
+                        .get("curator")?
+                        .get("displayName")?
+                        .as_str()?
+                        .to_owned();
+                    let slug = node.get("slug")?.as_str()?.to_owned();
+                    let title = node.get("title")?.as_str()?.to_owned();
 
-                    let body = format!("[{}] {}", title, slug);
-                    Some(crate::common::Message {
-                        user: Some(user.into()),
-                        timestamp: None,
-                        body,
+                    Some(Clip {
+                        username: user,
+                        slug,
+                        title,
                     })
                 })
                 .collect())
         }
     }
     impl Iterator for ClipIterator<'_> {
-        type Item = Vec<crate::common::Message>;
+        type Item = Vec<Clip>;
         fn next(&mut self) -> Option<Self::Item> {
             if self.cursor.is_some() {
                 match self.get_next() {
