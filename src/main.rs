@@ -144,9 +144,17 @@ fn handle_twitch_channel(
                 let clips = channel.clips().flatten();
 
                 if opts.transcribe {
-                    clips.for_each(|clip| {
-                        crate::whisper::process(&task, &clip, &clip.url, Some("English"), filter);
-                    });
+                    if crate::whisper::check_whisper() {
+                        clips.for_each(|clip| {
+                            crate::whisper::process(
+                                &task,
+                                &clip,
+                                &clip.url,
+                                Some("English"),
+                                filter,
+                            );
+                        });
+                    }
                 } else {
                     clips
                         .filter(|c| filter.is_match(&c.username) || filter.is_match(&c.title))

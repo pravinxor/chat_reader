@@ -20,6 +20,7 @@ pub fn process(
     let mut process = std::process::Command::new("python")
         .arg("-c")
         .arg(generate_script(url, language))
+        .stderr(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .spawn()
         .unwrap();
@@ -36,5 +37,71 @@ pub fn process(
             displayed_title = true;
         }
         writeln!(task, "{}", line)
+    }
+}
+
+fn has_whisper() -> bool {
+    let process = std::process::Command::new("python")
+        .arg("-c")
+        .arg("import whisper")
+        .output();
+    if let Ok(output) = process {
+        if !output.status.success() {
+            println!("Error: Whisper is not installed");
+            print!("Would you like to install it (y/N)? ");
+            std::io::stdout().flush().unwrap();
+            let mut response = String::new();
+            std::io::stdin().read_line(&mut response).unwrap();
+            response.make_ascii_lowercase();
+            if response.trim() == "y" {
+                let process = std::process::Command::new("python")
+                    .arg("-m")
+                    .arg("pip")
+                    .arg("install")
+                    .arg("whisper")
+                    .spawn();
+                if let Ok(mut output) = process {
+                    let output = output.wait();
+                    if let Ok(status) = output {
+                        if !status.success() {
+                            eprintln!("\nInstallation failed!\n");
+                        } else {
+                            println!("\nInstallation successful\n");
+                            return true;
+                        }
+                    } else if let Err(e) = output {
+                        eprintln!("{}", e);
+                    }
+                } else if let Err(e) = process {
+                    eprintln!("{}", e);
+                }
+            } else {
+                eprintln!("Exiting...");
+            }
+        } else {
+            return true;
+        }
+    } else if let Err(e) = process {
+        eprintln!("Error: {}", e);
+    }
+    return false;
+}
+
+pub fn check_whisper() -> bool {
+    let process = std::process::Command::new("python")
+        .arg("--version")
+        .output();
+    match process {
+        Ok(version) => {
+            print!("Utilizing {}", String::from_utf8(version.stdout).unwrap());
+            return has_whisper();
+        }
+        Err(e) => {
+            println!(
+                "Error: {}\nIn order to use this feature, you must have Python\nDownload: https://www.python.org/downloads/",
+                e
+            );
+            return false;
+        }
     }
 }
