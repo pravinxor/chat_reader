@@ -84,7 +84,7 @@ fn has_whisper() -> bool {
     } else if let Err(e) = process {
         eprintln!("Error: {}", e);
     }
-    return false;
+    false
 }
 
 pub fn check_whisper() -> bool {
@@ -94,14 +94,14 @@ pub fn check_whisper() -> bool {
     match process {
         Ok(version) => {
             print!("Utilizing {}", String::from_utf8(version.stdout).unwrap());
-            return has_whisper();
+            has_whisper()
         }
         Err(e) => {
             println!(
                 "Error: {}\nIn order to use this feature, you must have Python\nDownload: https://www.python.org/downloads/",
                 e
             );
-            return false;
+            false
         }
     }
 }
