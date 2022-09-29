@@ -54,11 +54,16 @@ fn has_whisper() -> bool {
             std::io::stdin().read_line(&mut response).unwrap();
             response.make_ascii_lowercase();
             if response.trim() == "y" {
+                let process = std::process::Command::new("git").output();
+                if let Err(e) = process {
+                    eprintln!("Error: {} Git was not found, ensure you have git installed: https://git-scm.com/download", e);
+                    return false;
+                }
                 let process = std::process::Command::new("python")
                     .arg("-m")
                     .arg("pip")
                     .arg("install")
-                    .arg("whisper")
+                    .arg("git+https://github.com/openai/whisper.git")
                     .spawn();
                 if let Ok(mut output) = process {
                     let output = output.wait();
