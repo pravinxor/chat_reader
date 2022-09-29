@@ -20,7 +20,6 @@ pub fn process(
     let mut process = std::process::Command::new("python")
         .arg("-c")
         .arg(generate_script(url, language))
-        .stderr(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .spawn()
         .unwrap();
@@ -57,7 +56,6 @@ fn has_whisper() -> bool {
                 let process = std::process::Command::new("git").output();
                 if let Err(e) = process {
                     eprintln!("Error: {} Git was not found, ensure you have git installed: https://git-scm.com/download", e);
-                    return false;
                 }
                 let process = std::process::Command::new("python")
                     .arg("-m")
