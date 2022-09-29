@@ -33,6 +33,17 @@ struct Args {
 
 #[derive(clap::Args)]
 #[clap(arg_required_else_help(true))]
+struct TranscribeOpts {
+    /// Use video transcription as matching sort (Currently only supports clips)
+    #[clap(short, long, parse(from_flag))]
+    transcribe: bool,
+
+    #[clap(short, long)]
+    language: Option<String>,
+}
+
+#[derive(clap::Args)]
+#[clap(arg_required_else_help(true))]
 struct TwitchChannelOpts {
     /// Read all clips in a channel and returns matches
     #[clap(short, long, parse(from_flag))]
@@ -46,9 +57,8 @@ struct TwitchChannelOpts {
     #[clap(short, long, parse(from_flag))]
     recover: bool,
 
-    /// Use video transcription as matching sort (Currently only supports clips)
-    #[clap(short, long, parse(from_flag))]
-    transcribe: bool,
+    #[clap(flatten)]
+    transcribeopts: TranscribeOpts,
 
     #[clap(short, long, parse(from_flag))]
     showall: bool,
@@ -143,10 +153,16 @@ fn handle_twitch_channel(
                 let task = sequence.begin();
                 let clips = channel.clips().flatten();
 
-                if opts.transcribe {
+                if opts.transcribeopts.transcribe {
                     if crate::whisper::check_whisper() {
                         clips.for_each(|clip| {
-                            crate::whisper::process(&task, &clip, &clip.url, None, filter);
+                            crate::whisper::process(
+                                &task,
+                                &clip,
+                                &clip.url,
+                                opts.transcribeopts.language.as_ref().map(|s| &**s),
+                                filter,
+                            );
                         });
                     }
                 } else {
