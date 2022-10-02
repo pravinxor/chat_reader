@@ -44,7 +44,8 @@ where
                 if !showall {
                     task.hold();
                 }
-                writeln!(task, "{}", vod.to_string());
+                let v = vod.to_string();
+                writeln!(task, "{}", v);
                 for comment in comments.filter(|message| {
                     filter.is_match(&message.body)
                         || match message.user.as_ref() {

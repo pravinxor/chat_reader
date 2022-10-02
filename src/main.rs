@@ -160,7 +160,7 @@ fn handle_twitch_channel(
                                 &task,
                                 &clip,
                                 &clip.url,
-                                opts.transcribeopts.language.as_ref().map(|s| &**s),
+                                opts.transcribeopts.language.as_deref(),
                                 filter,
                             );
                         });
