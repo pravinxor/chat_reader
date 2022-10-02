@@ -46,7 +46,7 @@ impl Channel {
         Ok(Self { value: top_value })
     }
 
-    fn unix_time(time: &str) -> Result<i64, chrono::ParseError> {
+    pub fn unix_time(time: &str) -> Result<i64, chrono::ParseError> {
         Ok(chrono::NaiveDateTime::parse_from_str(time, "%Y-%m-%dT%H:%M:%SZ")?.timestamp())
     }
 
@@ -94,7 +94,7 @@ impl std::fmt::Display for Video {
 }
 
 impl Video {
-    fn new(stream_id: u64, timestamp: i64, channel_name: &str) -> Option<Self> {
+    pub fn new(stream_id: u64, timestamp: i64, channel_name: &str) -> Option<Self> {
         let body = format!("{}_{}_{}", channel_name, stream_id, timestamp);
         let hash = format!("{:x}", sha1::Sha1::digest(&body));
         let subdirectory = format!("{}_{}", &hash[0..20], body);

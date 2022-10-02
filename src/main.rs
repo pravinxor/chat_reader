@@ -70,9 +70,23 @@ enum DirectoryClips {
 }
 
 #[derive(Subcommand)]
+enum RecoverOpts {
+    Recover {
+        #[clap(short, long)]
+        start_time: String,
+
+        #[clap(short, long)]
+        username: String,
+    },
+}
+
+#[derive(Subcommand)]
 enum Twitch {
     Vod {
-        id: u32,
+        id: u64,
+
+        #[clap(subcommand)]
+        recover: Option<RecoverOpts>,
     },
     Channel {
         channel: crate::twitch::Channel,
@@ -196,14 +210,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match args.mode {
         Mode::Twitch { twitch } => match twitch {
-            Twitch::Vod { id } => {
-                let vod = crate::twitch::Vod::new(id);
-                vod.comments()
-                    .flatten()
-                    .filter(|m| {
-                        filter.is_match(&m.body) || filter.is_match(m.user.as_ref().unwrap())
-                    })
-                    .for_each(|comment| println!("{}", comment));
+            Twitch::Vod { id, recover } => {
+                if let Some(rec) = recover {
+                    match rec {
+                        RecoverOpts::Recover {
+                            start_time,
+                            username,
+                        } => {
+                            let timestamp = crate::twitchrecover::Channel::unix_time(&start_time)?;
+                            if let Some(vod) =
+                                crate::twitchrecover::Video::new(id, timestamp, &username)
+                            {
+                                println!("{}", vod);
+                            } else {
+                                eprintln!("Unable to recover vod");
+                            }
+                        }
+                    }
+                } else {
+                    let vod = crate::twitch::Vod::new(id as u32);
+                    vod.comments()
+                        .flatten()
+                        .filter(|m| {
+                            filter.is_match(&m.body) || filter.is_match(m.user.as_ref().unwrap())
+                        })
+                        .for_each(|comment| println!("{}", comment));
+                }
             }
 
             Twitch::Channel { channel, opts } => {
