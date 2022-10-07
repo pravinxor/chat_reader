@@ -65,7 +65,6 @@ impl Channel {
             .ok_or("Missing data")?
             .as_array()
             .ok_or("Could not convert data -> array")?;
-        dbg!(&data);
         let sequencer = oqueue::Sequencer::stdout();
         rayon::scope_fifo(|t| {
             for video in data {
