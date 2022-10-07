@@ -219,7 +219,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         } => {
                             let timestamp = crate::twitchrecover::Channel::unix_time(&start_time)?;
                             if let Some(vod) =
-                                crate::twitchrecover::Video::new(id, timestamp, &username)
+                                crate::twitchrecover::Video::new(id, timestamp, &username, None)
                             {
                                 println!("{}", vod);
                             } else {

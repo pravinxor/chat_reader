@@ -21,6 +21,7 @@ pub struct Channel {
 #[derive(Debug)]
 pub struct Video {
     id: u64,
+    title: Option<String>,
     link: String,
 }
 
@@ -64,7 +65,7 @@ impl Channel {
             .ok_or("Missing data")?
             .as_array()
             .ok_or("Could not convert data -> array")?;
-
+        dbg!(&data);
         let sequencer = oqueue::Sequencer::stdout();
         rayon::scope_fifo(|t| {
             for video in data {
@@ -75,7 +76,10 @@ impl Channel {
                         let start_timestamp = video.get("startDateTime")?.as_str()?;
                         let unix_timestamp = Self::unix_time(start_timestamp).unwrap();
                         let channel_name = video.get("channelurl")?.as_str()?;
-                        Video::new(stream_id, unix_timestamp, channel_name)
+                        let starttime = video
+                            .get("starttime")
+                            .map(|s| s.as_str().unwrap().to_owned());
+                        Video::new(stream_id, unix_timestamp, channel_name, starttime)
                     };
                     if let Some(video) = rvideo(video) {
                         writeln!(task, "{}\n", video);
@@ -89,12 +93,21 @@ impl Channel {
 
 impl std::fmt::Display for Video {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[{}]\n{}", self.id, self.link)
+        write!(f, "[{}]", self.id)?;
+        if let Some(title) = &self.title {
+            write!(f, " [{}]", title)?;
+        }
+        write!(f, "\n{}", self.link)
     }
 }
 
 impl Video {
-    pub fn new(stream_id: u64, timestamp: i64, channel_name: &str) -> Option<Self> {
+    pub fn new(
+        stream_id: u64,
+        timestamp: i64,
+        channel_name: &str,
+        title: Option<String>,
+    ) -> Option<Self> {
         let body = format!("{}_{}_{}", channel_name, stream_id, timestamp);
         let hash = format!("{:x}", sha1::Sha1::digest(&body));
         let subdirectory = format!("{}_{}", &hash[0..20], body);
@@ -122,6 +135,7 @@ impl Video {
         cloudfront_link.map(|link| Self {
             id: stream_id,
             link,
+            title,
         })
     }
 }
