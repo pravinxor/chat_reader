@@ -398,8 +398,12 @@ impl Channel {
                 let vod = v.get("node").unwrap();
                 let title = vod.get("title")?.as_str()?.to_string();
                 let id = vod.get("id").unwrap().as_str()?.parse().unwrap();
-                let m3u8 = Vod::m3u8(id, vod.get("animatedPreviewURL")?.as_str()?).unwrap();
-                Some(Vod { title, id, m3u8 })
+                let m3u8 = Vod::m3u8(id, vod.get("animatedPreviewURL")?.as_str()?);
+                Some(Vod {
+                    title,
+                    id,
+                    m3u8: m3u8.unwrap_or("Unknown link".into()),
+                })
             })
             .collect();
         Ok(vods)
