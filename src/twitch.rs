@@ -7,7 +7,8 @@ fn gql(json: &serde_json::Value) -> Result<serde_json::Value, reqwest::Error> {
     crate::common::CLIENT
         .post(GQL)
         .header("Client-Id", CLIENT_ID)
-        .header("X-Device-Id", "1UTTXkkDGQnD17zO8HvZ2mFiFONpG1ft")
+        .header("Client-Integrity", "v4.public.eyJjbGllbnRfaWQiOiJraW1uZTc4a3gzbmN4NmJyZ280bXY2d2tpNWgxa28iLCJjbGllbnRfaXAiOiIxMjkuMTE5LjIzNS4xNyIsImRldmljZV9pZCI6IlJOOElNdGxWMGQ0bzFDN3QwUHBGWnZtV3ZyZEZrQzRsIiwiZXhwIjoiMjAyMy0wNS0wNVQxNDowODo1MloiLCJpYXQiOiIyMDIzLTA1LTA0VDIyOjA4OjUyWiIsImlzX2JhZF9ib3QiOiJmYWxzZSIsImlzcyI6IlR3aXRjaCBDbGllbnQgSW50ZWdyaXR5IiwibmJmIjoiMjAyMy0wNS0wNFQyMjowODo1MloiLCJ1c2VyX2lkIjoiIn2yd9kauUo3gW5-mSigp2g6P48u3S4C39g9PjhgmYN5HtUzoAvgr7lsyS78ytYgop_IZ1KmnS38dutdRCmr3qgI")
+        .header("X-Device-Id", "RN8IMtlV0d4o1C7t0PpFZvmWvrdFkC4l")
         .json(json)
         .send()?
         .json()
